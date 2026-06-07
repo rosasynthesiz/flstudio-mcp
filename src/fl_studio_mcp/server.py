@@ -27,20 +27,23 @@ from .connection import list_ports
 from .protocol import port_from_fl_name, port_to_fl_name
 from .tools import arrange as arrange_tools
 from .tools import audio as audio_tools
-from .tools import bulk as bulk_tools
 from .tools import batch as batch_tools
+from .tools import bulk as bulk_tools
 from .tools import chains as chains_tools
+from .tools import channel as channel_domain_tools
 from .tools import channels as channel_tools
 from .tools import color as color_tools
 from .tools import compose as compose_tools
-from .tools import effects as effects_tools
 from .tools import effect as effect_domain_tools
+from .tools import effects as effects_tools
 from .tools import export as export_tools
+from .tools import knowledgebase as knowledgebase_tools
 from .tools import mix_doctor as mix_doctor_tools
-from .tools import mixing as mixing_tools
+from .tools import mixer as mixer_tools
 from .tools import mixer_core as mixer_core_tools
-from .tools import patterns_playlist as patterns_playlist_tools
+from .tools import mixing as mixing_tools
 from .tools import pattern as pattern_domain_tools
+from .tools import patterns_playlist as patterns_playlist_tools
 from .tools import pianoroll as pianoroll_tools
 from .tools import playlist as playlist_domain_tools
 from .tools import plugin as plugin_tools
@@ -50,10 +53,7 @@ from .tools import project_doctor as project_doctor_tools
 from .tools import project_organizer as project_organizer_tools
 from .tools import resources as resource_defs
 from .tools import routing as routing_tools
-from .tools import channel as channel_domain_tools
-from .tools import mixer as mixer_tools
 from .tools import transport as transport_tools
-from .tools import knowledgebase as knowledgebase_tools
 
 logger = logging.getLogger("fl_studio_mcp")
 
@@ -197,7 +197,7 @@ def build_server() -> FastMCP:
         instructions=SERVER_INSTRUCTIONS,
     )
     transport_tools.register(mcp)
-    mixer_tools.register(mcp)         # v1.2 mixer domain tool (additive shadow)
+    mixer_tools.register(mcp)  # v1.2 mixer domain tool (additive shadow)
     channel_domain_tools.register(mcp)  # v1.2 channel domain tool (additive shadow)
     pattern_domain_tools.register(mcp)  # v1.2 pattern domain tool (additive shadow)
     playlist_domain_tools.register(mcp)  # v1.2 playlist domain tool (track metadata only)
@@ -213,7 +213,7 @@ def build_server() -> FastMCP:
     routing_tools.register(mcp)  # Routing/cleanup Slice 1: read-only
     bulk_tools.register(mcp)  # Bulk mute/solo: server-side group orchestration
     color_tools.register(mcp)  # Track/channel coloring: name/hex -> FL RGB, one rollback unit
-    project_doctor_tools.register(mcp)  # Project Doctor + Export Preflight
+    project_doctor_tools.register(mcp)  # Project health + export preflight
     project_organizer_tools.register(mcp)  # Phase 1: Project Organizer (naming, colors, structure)
     arrange_tools.register(mcp)  # Arrangement Slice 1: pattern create/clone + markers
     resource_defs.register(mcp)  # MCP resources: fl://status, fl://project, ...
@@ -222,7 +222,7 @@ def build_server() -> FastMCP:
     chains_tools.register(mcp)  # Genre chain setup: map recipes to existing plugins
     export_tools.register(mcp)  # MIDI export: arrangement spec -> type-1 .mid on disk
     presets_tools.register(mcp)  # Preset suggester: read preset names from disk
-    mix_doctor_tools.register(mcp)  # Mix Doctor: diagnose whole mix + gated apply-fixes
+    mix_doctor_tools.register(mcp)  # Mix Review: diagnose whole mix + gated adjustments
     patterns_playlist_tools.register(mcp)  # Phase 3: Patterns & Playlist pack
     knowledgebase_tools.register(mcp)  # KB Tools
     for name in sorted(_LEGACY_LOW_LEVEL_TOOLS):

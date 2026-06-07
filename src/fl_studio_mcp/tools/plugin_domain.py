@@ -74,7 +74,9 @@ def register(mcp: FastMCP) -> None:
         plugin and parameter reads.
         """
         if action in _PLUGIN_LOADING_ACTIONS:
-            raise ValueError("plugin loading or insertion is unsupported; configure already-loaded plugins only")
+            raise ValueError(
+                "plugin loading or insertion is unsupported; configure already-loaded plugins only"
+            )
 
         resolved = dict(params or {})
         bridge = get_bridge()
@@ -97,7 +99,10 @@ def register(mcp: FastMCP) -> None:
         if action in {"get_param", "set_param"}:
             try:
                 idx, name = resolve_param_index(
-                    bridge, int(resolved.get("track", -1)), int(resolved.get("slot", -1)), resolved.get("param")
+                    bridge,
+                    int(resolved.get("track", -1)),
+                    int(resolved.get("slot", -1)),
+                    resolved.get("param"),
                 )
             except ParamNotFound as exc:
                 return {"ok": False, "error": str(exc)}
@@ -143,7 +148,9 @@ def _bridge_call(bridge, command: str, params: dict | None = None) -> dict:
     except FLNotRunning as e:
         raise RuntimeError(str(e)) from e
     except FLTimeout as e:
-        raise RuntimeError(f"{e}. Try fl_transport(action='ping') to confirm the controller is alive.") from e
+        raise RuntimeError(
+            f"{e}. Try fl_transport(action='ping') to confirm the controller is alive."
+        ) from e
     except FLCommandFailed as e:
         raise RuntimeError(f"FL Studio rejected the command: {e}") from e
 
@@ -155,6 +162,8 @@ def _bridge_call_paginated(bridge, command: str, list_key: str, params: dict | N
     except FLNotRunning as e:
         raise RuntimeError(str(e)) from e
     except FLTimeout as e:
-        raise RuntimeError(f"{e}. Try fl_transport(action='ping') to confirm the controller is alive.") from e
+        raise RuntimeError(
+            f"{e}. Try fl_transport(action='ping') to confirm the controller is alive."
+        ) from e
     except FLCommandFailed as e:
         raise RuntimeError(f"FL Studio rejected the command: {e}") from e

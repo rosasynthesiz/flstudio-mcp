@@ -1,19 +1,19 @@
 # MCP Tool Policy
 
-## Tool-Hierarchie
-1. **High-Level Safe Tools verwenden** (z. B. `set_internal_mixer_eq_gain_db`).
-2. **Kalibrierte Conversion Tools verwenden**, falls keine High-Level-Tools verfügbar sind.
-3. **Raw FL Studio API nur als Last Resort** (z. B. `mixer.setEqGain`).
-4. **Niemals normalisierte Werte raten!**
+## Tool Hierarchy
+1. **Use High-Level Safe Tools** (e.g. `set_internal_mixer_eq_gain_db`).
+2. **Use Calibrated Conversion Tools**, if no high-level tools are available.
+3. **Raw FL Studio API only as a Last Resort** (e.g. `mixer.setEqGain`).
+4. **Never guess normalized values!**
 
-## Beispiele
-**Verboten:**
+## Examples
+**Forbidden:**
 ```python
 mixer.setEqGain(5, 0, -14)
 ```
-*(Grund: `-14` ist ein dB-Wert, aber `mixer.setEqGain` erwartet einen normalisierten Float).*
+*(Reason: `-14` is a dB value, but `mixer.setEqGain` expects a normalized float).*
 
-**Erlaubt:**
+**Allowed:**
 ```python
 set_internal_mixer_eq_gain_db(track=5, band="low", db=-14)
 ```

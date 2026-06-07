@@ -16,6 +16,7 @@ from .. import protocol, safety
 from ..connection import fetch_all_pages, get_bridge
 from .targets import mixer_track_error, no_free_mixer_track_response
 
+
 def _looks_default_channel_name(name: str) -> bool:
     if not name:
         return True
@@ -190,9 +191,7 @@ def register(mcp: FastMCP) -> None:
         Safety: Write-Safe with Rollback.
         """
         bridge = get_bridge()
-        error = mixer_track_error(
-            bridge, mixer_track, purpose="channel mixer-target assignment"
-        )
+        error = mixer_track_error(bridge, mixer_track, purpose="channel mixer-target assignment")
         if error is not None:
             return error
         return safety.safe_write(
@@ -449,69 +448,70 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool(annotations={"title": "Classify channel types", **_RO})
     def fl_classify_channels() -> dict:
         """Group all channels by their detected type (AudioClip, Sampler, GenPlug, etc).
-        
+
         Safety: Read-Only.
         """
         bridge = get_bridge()
         chans = fetch_all_pages(bridge, protocol.CMD_CHANNEL_ROUTING_SUMMARY, "channels")
-        
+
         grouped = {}
         for c in chans.get("channels", []):
             ctype = c.get("type", {}).get("label", "unknown")
-            grouped.setdefault(ctype, []).append({
-                "channel": c.get("channel"),
-                "name": c.get("name"),
-                "target_mixer_track": c.get("target_mixer_track")
-            })
-            
-        return {
-            "summary": {k: len(v) for k, v in grouped.items()},
-            "groups": grouped
-        }
+            grouped.setdefault(ctype, []).append(
+                {
+                    "channel": c.get("channel"),
+                    "name": c.get("name"),
+                    "target_mixer_track": c.get("target_mixer_track"),
+                }
+            )
+
+        return {"summary": {k: len(v) for k, v in grouped.items()}, "groups": grouped}
 
     @mcp.tool(annotations={"title": "Inspect Audio Clips", **_RO})
     def fl_inspect_audio_clips() -> dict:
         """Find all Audio Clips and check if they are named, routed, colored, or too loud.
-        
+
         Safety: Read-Only.
         Note: Cannot detect Stretch Mode or Normalize status due to API limits.
         """
         bridge = get_bridge()
         chans = fetch_all_pages(bridge, protocol.CMD_CHANNEL_ROUTING_SUMMARY, "channels")
-        
+
         audio_clips = []
         for c in chans.get("channels", []):
             if c.get("type", {}).get("label") == "audioclip":
-                vol = c.get("vol", 0.78125) # Default is around 78%
+                vol = c.get("vol", 0.78125)  # Default is around 78%
                 target = c.get("target_mixer_track")
-                
+
                 issues = []
                 if _looks_default_channel_name(c.get("name")):
                     issues.append("Unnamed")
                 if not isinstance(target, int) or target == 0:
                     issues.append("Unrouted")
                 if vol > 0.7:
-                    issues.append(f"Loud (vol={round(vol,2)})")
-                    
-                audio_clips.append({
-                    "channel": c.get("channel"),
-                    "name": c.get("name"),
-                    "target_mixer_track": target,
-                    "volume": round(vol, 3),
-                    "issues": issues,
-                })
-                
+                    issues.append(f"Loud (vol={round(vol, 2)})")
+
+                audio_clips.append(
+                    {
+                        "channel": c.get("channel"),
+                        "name": c.get("name"),
+                        "target_mixer_track": target,
+                        "volume": round(vol, 3),
+                        "issues": issues,
+                    }
+                )
+
         return {"audio_clips": audio_clips, "count": len(audio_clips)}
 
     @mcp.tool(annotations={"title": "Plan Audio Clip Safe Defaults", **_RO})
     def fl_plan_audio_clip_safe_defaults() -> dict:
         """Generate a plan to apply safe defaults to all Audio Clips (lower volume, assign mixer track).
-        
+
         Safety: Read-Only (Dry-run).
         """
         bridge = get_bridge()
         chans = fetch_all_pages(bridge, protocol.CMD_CHANNEL_ROUTING_SUMMARY, "channels")
-        
+
         plan = []
         for c in chans.get("channels", []):
             if c.get("type", {}).get("label") == "audioclip":
@@ -519,84 +519,85 @@ def register(mcp: FastMCP) -> None:
                 # Target vol around 0.25 (-12dBish)
                 if c.get("vol", 0.78) > 0.4:
                     actions.append({"action": "set_volume", "from": c.get("vol"), "to": 0.25})
-                
+
                 target = c.get("target_mixer_track")
                 if not isinstance(target, int) or target == 0:
                     # In a real plan, we'd find a free track, but for now we just flag it
                     actions.append({"action": "route_to_free_mixer_track"})
-                    
+
                 if actions:
-                    plan.append({
-                        "channel": c.get("channel"),
-                        "name": c.get("name"),
-                        "actions": actions
-                    })
-                    
+                    plan.append(
+                        {"channel": c.get("channel"), "name": c.get("name"), "actions": actions}
+                    )
+
         return {
             "plan": plan,
             "manual_checklist": [
                 "API LIMITATION: You must manually check if 'Normalize' is active on each clip.",
-                "API LIMITATION: You must manually check if 'Stretch Mode' is set correctly (e.g. Stretch Pro) on each clip."
-            ]
+                "API LIMITATION: You must manually check if 'Stretch Mode' is set correctly (e.g. Stretch Pro) on each clip.",
+            ],
         }
 
     @mcp.tool(annotations={"title": "Apply Audio Clip Safe Defaults", **_WR})
     def fl_apply_audio_clip_safe_defaults() -> dict:
         """Apply safe defaults to all Audio Clips (lower volume to 25%, assign to free mixer tracks).
-        
+
         Safety: Write-Safe with Rollback.
         """
         bridge = get_bridge()
         chans = fetch_all_pages(bridge, protocol.CMD_CHANNEL_ROUTING_SUMMARY, "channels")
-        
+
         writes = []
         assigned = []
         current_free_track = 1
-        
+
         for c in chans.get("channels", []):
             if c.get("type", {}).get("label") == "audioclip":
                 idx = c.get("channel")
-                
+
                 # 1. Lower volume if > 40%
                 if c.get("vol", 0.78) > 0.4:
-                    writes.append({
-                        "snap_scope": f"channel:{idx}",
-                        "command": protocol.CMD_CHANNEL_SET_VOLUME,
-                        "params": {"channel": idx, "value": 0.25},
-                        "restore": lambda b, ci=idx: {
+                    writes.append(
+                        {
+                            "snap_scope": f"channel:{idx}",
                             "command": protocol.CMD_CHANNEL_SET_VOLUME,
-                            "params": {"channel": ci, "value": b.get("vol", 0.78125)}
+                            "params": {"channel": idx, "value": 0.25},
+                            "restore": lambda b, ci=idx: {
+                                "command": protocol.CMD_CHANNEL_SET_VOLUME,
+                                "params": {"channel": ci, "value": b.get("vol", 0.78125)},
+                            },
                         }
-                    })
-                    
+                    )
+
                 # 2. Route if unrouted
                 target = c.get("target_mixer_track")
                 if not isinstance(target, int) or target == 0:
                     free_track = _find_free_mixer_track(bridge, start_track=current_free_track)
                     if free_track:
-                        writes.append({
-                            "snap_scope": f"channel:{idx}",
-                            "command": protocol.CMD_CHANNEL_SET_TARGET,
-                            "params": {"channel": idx, "track": free_track},
-                            "restore": lambda b, ci=idx: _target_restore(ci, b)
-                        })
+                        writes.append(
+                            {
+                                "snap_scope": f"channel:{idx}",
+                                "command": protocol.CMD_CHANNEL_SET_TARGET,
+                                "params": {"channel": idx, "track": free_track},
+                                "restore": lambda b, ci=idx: _target_restore(ci, b),
+                            }
+                        )
                         assigned.append(f"Ch {idx} ({c.get('name')}) -> Mixer {free_track}")
                         current_free_track = free_track + 1
-                        
+
         if not writes:
             return {"status": "No audio clips needed safe defaults."}
-            
+
         res = safety.safe_write_group(
             bridge,
             tool="apply_audio_clip_safe_defaults",
             scope="audio_clips",
             writes=writes,
-            rollback_unit="audio_clip_safe_defaults"
+            rollback_unit="audio_clip_safe_defaults",
         )
         res["manual_checklist"] = [
             "API LIMITATION: You must manually check if 'Normalize' is active on each clip.",
-            "API LIMITATION: You must manually check if 'Stretch Mode' is set correctly (e.g. Stretch Pro) on each clip."
+            "API LIMITATION: You must manually check if 'Stretch Mode' is set correctly (e.g. Stretch Pro) on each clip.",
         ]
         res["assignments"] = assigned
         return res
-

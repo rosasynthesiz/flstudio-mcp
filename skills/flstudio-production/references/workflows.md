@@ -2,7 +2,7 @@
 
 ## Live Write Smoke
 
-1. `fl_ping`.
+1. `fl_transport(action="ping")`.
 2. Read the target state.
 3. Apply one temporary, low-risk change.
 4. Verify readback.
@@ -22,7 +22,7 @@ asked for a test.
 
 ## Mixer Organization
 
-1. Inspect tracks with `fl_mixer_list_tracks` or `fl_get_routing_all`.
+1. Inspect tracks with `fl_mixer(action="list")` or `fl_get_routing_all`.
 2. Use `fl_set_track_color`, `fl_set_channel_color`, `fl_group_tracks`, or
    channel assignment tools as grouped rollback-safe changes.
 3. For bulk solo/mute, prefer `fl_solo_tracks` and `fl_mute_tracks`; restore
@@ -30,7 +30,7 @@ asked for a test.
 
 ## Plugin And Chain Configuration
 
-1. Use `fl_plugin_list` to inspect already-loaded plugins.
+1. Use `fl_plugin(action="list")` to inspect already-loaded plugins.
 2. Use `fl_setup_chain` to plan genre-style chains against loaded plugins.
 3. Use intent tools only on matching loaded plugins.
 4. Never load missing plugins through the API; suggest manual loading and
@@ -38,12 +38,13 @@ asked for a test.
 
 ## Piano Roll Composition
 
-1. Confirm the bridge is alive with `fl_ping`.
+1. Confirm the bridge is alive with `fl_transport(action="ping")`.
 2. If needed, tell the user to run `MCP Apply` once from the Piano Roll
    Scripting menu.
 3. Use `fl_scale_list` or `fl_scale_get` for pitch material.
-4. Use `fl_piano_write_notes`, `fl_piano_write_chord`,
-   `fl_write_raga_melody`, or `fl_write_raga_chords`.
+4. Use `fl_piano_roll(action="write_notes")`,
+   `fl_piano_roll(action="write_chord")`, `fl_write_raga_melody`, or
+   `fl_write_raga_chords`.
 5. If targeting a specific instrument, pass or select the channel explicitly.
 
 ## Audio-To-MIDI And MIDI Export

@@ -1,0 +1,92 @@
+{
+  "date": "2026-06-06",
+  "agent_author": "Codex",
+  "topic": "FL Studio MIDI import partitioning and isolated automation CC export",
+  "affected_file_api": [
+    "scratch/generator-psytrance-rules/*",
+    "Standard MIDI files",
+    "FL Studio MIDI import",
+    "FL Studio automation clips"
+  ],
+  "affected_api_function_tool": [
+    "External MIDI export artifacts",
+    "Generated sidecar plans",
+    "Manual FL Studio MIDI import"
+  ],
+  "context": "The musical generator remains unchanged, but final MIDI export should be partitioned for stable manual FL Studio import and explicit automation curve mapping.",
+  "observation": "Use at most 30 FL import tracks or instrument targets per instrument MIDI file by conservative user-reported policy. Treat automation MIDI as isolated CC curve transport only, not as native FL automation creation or parameter binding.",
+  "tested_values": {
+    "live_fl_import_tested": false,
+    "instrument_midi_file_track_count_policy": "1..30",
+    "midi_channel_range": "0..15",
+    "cc_value_range": "0..127",
+    "confidence_for_30_track_threshold": "user_reported"
+  },
+  "result": {
+    "instrument_export_policy": "Partition instrument MIDI exports into multiple Type 1 files when more than 30 FL import tracks/instrument targets are needed.",
+    "automation_export_policy": "Prefer one automation target per MIDI-CC file with one CC number, one MIDI channel, one target parameter, length in bars/BPM, and a mapping-file entry.",
+    "mapping_file_required": true
+  },
+  "confidence_level": "user_reported",
+  "source_method": [
+    "User report on 2026-06-06",
+    "Local scratch rule-pack update",
+    "No live FL Studio import smoke performed"
+  ],
+  "valid_ranges": {
+    "midi_channel": "0..15",
+    "automation_cc": "0..127",
+    "automation_midi_channel": "0..15",
+    "instrument_midi_file_track_count": "1..30",
+    "automation_length_bars": "integer >= 1",
+    "automation_bpm": "positive number"
+  },
+  "cc_convention": {
+    "1": "macro_intensity_or_modulation",
+    "7": "volume",
+    "10": "pan",
+    "11": "expression_or_energy",
+    "71": "resonance",
+    "74": "filter_cutoff",
+    "91": "reverb_send",
+    "93": "delay_send"
+  },
+  "example": {
+    "instrument_files": [
+      {
+        "file": "project_part01_instruments.mid",
+        "track_count": 30
+      },
+      {
+        "file": "project_part02_instruments.mid",
+        "track_count": 12
+      }
+    ],
+    "automation_files": [
+      {
+        "file": "lead_cutoff_32bar_cc74_ch01.mid",
+        "target": "LEAD - Cutoff",
+        "cc": 74,
+        "channel": 0
+      }
+    ]
+  },
+  "known_pitfalls": [
+    "Do not interpret the 30-track export policy as a change to Standard MIDI channel range.",
+    "Do not claim MIDI-CC import creates or binds FL automation clips.",
+    "Avoid packing many unrelated CCs into one automation MIDI file for manual import.",
+    "MIDI CC resolution is coarse for precise EQ, fine gain, mastering, and exact sidechain curves."
+  ],
+  "reproduction_steps": [
+    "Generate a plan with more than 30 instrument/import tracks.",
+    "Export instrument MIDI in multiple Type 1 files, each with track_count <= 30.",
+    "Keep each track's midi.channel in 0..15.",
+    "Export one automation target per MIDI-CC file.",
+    "Create a JSON/YAML mapping file from each automation MIDI file to the manual FL automation clip or target parameter."
+  ],
+  "open_questions": [
+    "The exact FL Studio build-specific failure threshold for large MIDI imports has not been measured.",
+    "Whether a multi-track automation MIDI file remains practical depends on the manual import workflow and target project complexity."
+  ],
+  "next_recommended_action": "When FL Studio is available, run a manual import smoke comparing 30-track and 31-track instrument MIDI files and document the build, import settings, and result."
+}

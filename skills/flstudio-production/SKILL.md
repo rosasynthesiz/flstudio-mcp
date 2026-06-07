@@ -9,12 +9,13 @@ Use the FLStudioMCP tool surface as a rollback-first production assistant.
 
 ## Start Every Session
 
-1. Call `fl_ping` before live FL work.
-2. Confirm the reported controller build is the one expected by the current
+1. Read `fl://agent-briefing`, then `fl://status`, before choosing tools.
+2. Call `fl_transport(action="ping")` before live FL writes or troubleshooting.
+3. Confirm the reported controller build is the one expected by the current
    code or roadmap checkpoint.
-3. If a write is requested, read current state first, apply the smallest useful
+4. If a write is requested, read current state first, apply the smallest useful
    change, verify readback, and keep the rollback path visible.
-4. For Piano Roll writes, remind the user once per FL session to run
+5. For Piano Roll writes, remind the user once per FL session to run
    `MCP Apply` from the Piano Roll Scripting menu if the bridge is not armed.
 
 ## Safety Rules
@@ -39,6 +40,8 @@ Read only the references needed for the current task:
 - `references/workflows.md` for common production workflows.
 - `references/troubleshooting.md` when bridge, daemon, readback, or rollback
   behavior is unclear.
+- `../../docs/AGENT_ORIENTATION.md` for the compact startup and tool-choice
+  protocol.
 
 ## Response Style
 

@@ -76,13 +76,13 @@ TYPE_NORMS = {
 
 # --- band layout -------------------------------------------------------------
 # 7 bands; per-band params are interleaved by group:
-#   level: idx 0-6, freq: 7-13, width: 14-20, type: 21-27
-# Band N (1-based): level=N-1, freq=6+N, width=13+N, type=20+N
-_BAND_OFFSET = {"level": -1, "freq": 6, "width": 13, "type": 20}
+#   level: idx 0-6, freq: 7-13, width: 14-20, type: 21-27, order: 28-34
+# Band N (1-based): level=N-1, freq=6+N, width=13+N, type=20+N, order=27+N
+_BAND_OFFSET = {"level": -1, "freq": 6, "width": 13, "type": 20, "order": 27}
 
 
 def eq2_band_param_index(band: int, which: str) -> int:
-    """Param index for (1-based) band N's ``which`` ('level'|'freq'|'width'|'type')."""
+    """Param index for (1-based) band N's ``which`` ('level'|'freq'|'width'|'type'|'order')."""
     if not 1 <= band <= 7:
         raise ValueError(f"EQ2 band must be 1..7, got {band!r}")
     if which not in _BAND_OFFSET:

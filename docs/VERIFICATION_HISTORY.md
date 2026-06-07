@@ -4,6 +4,71 @@ This file stores historical verification evidence, including dated live/offline 
 
 ## Current verification checkpoints
 
+- 2026-06-07: Data-driven standard template classifier offline validation.
+  - Verified path: Validated all compact profiles under
+    `knowledgebase/templates/profiles/`, then ran parametric classifier,
+    template-policy, and cleanup-preservation tests across the profile set.
+    Also reran Mix Doctor and Project Doctor regression tests.
+  - Result: The classifier recognizes all 13 unique standard template names
+    represented by the profile set and exposes ambiguity for structurally
+    identical pairs (`Chillout`/`Chillout-Ambient`, `HipHop-Trap`/`Trap`,
+    `Funk`/`Rock`). Product workflows receive shared template context without
+    performing any FL Studio writes.
+
+- 2026-06-07: Template profile ingest offline validation.
+  - Verified path: Added `knowledgebase/templates/template_profile.schema.json`,
+    generated `knowledgebase/templates/profiles/electro.json` from the
+    read-only Electro dump, and ran
+    `scripts/validate_template_profiles.py --profile knowledgebase/templates/profiles/electro.json`.
+    Added focused regression coverage in `tests/test_template_profile_tools.py`.
+  - Result: The compact Electro profile validates against the schema and
+    preserves placeholder ranges, sidechain-control routes, plugin signatures,
+    channel routes, and tool-policy flags without reading or writing live FL
+    Studio state.
+
+- 2026-06-07: Electro template topology live read and workflow regression.
+  - Verified path: Ran read-only live dump
+    `scratch/scripts/read_electro_template_live.py` against the open `Electro`
+    template over TCP on FL Studio Producer Edition v25.2.5 [build 5055],
+    controller marker `channels-v38`. Added KB entries under
+    `knowledgebase/templates/` and `knowledgebase/known_pitfalls/`. Ran focused
+    offline tests and read-only live regressions for Mix Doctor and cleanup
+    detection.
+  - Result: The classifier recognized the `Electro` M/S premaster, stem buses,
+    sidechain control bus, source tracks, and reserved placeholder bank.
+    Stopped-template Mix Doctor output changed from 111 low findings to 0.
+    Cleanup detection changed from 95 placeholder false positives to only
+    `Insert 126`. No FL Studio project writes were performed.
+
+- 2026-06-07: Low-End/Stereo Safety Assistant live verification.
+  - Verified path: Added read-only `fl_review_low_end_stereo`, extended
+    `mixer_list_tracks` readback with `stereo_sep`, and bumped the controller
+    marker to `channels-v39`. Ran live readback parity check against FL Studio.
+  - Result: 51 focused Mix Review/Low-End tests passed with 0 failures. Safety
+    audit `scripts/audit_tool_safety.py --fail-on-gaps` passed with 0 write
+    gaps. Live FL readback parity for controller marker `channels-v39` successfully confirmed across a loaded project on macOS.
+
+- 2026-06-07: Product workflow naming live smoke on macOS.
+  - Verified path: Ran `scripts/probes/test_product_workflow_naming_live.py`
+    over the TCP daemon (port 9787) against FL Studio Producer Edition v25.2.5
+    [build 5055] with controller build marker `channels-v38`. Confirmed public
+    registration contains the new product workflow names and not the removed
+    names. Executed read-only calls `fl_review_mix`, `fl_gain_stage`,
+    `fl_review_routing`, `fl_project_health_overview`,
+    `fl_check_project_preflight`, `fl_start_guided_cleanup`,
+    `fl_get_guided_cleanup_context`, `fl_analyze_project_organization`, and
+    `fl_setup_chain`.
+  - Result: All read-only calls passed. Rollback-safe write smoke
+    `fl_apply_mix_adjustment("trim_volume", track=20, target_db=-7.09)` changed
+    Track 20 from `-6.84 dB` / `0.5718` normalized to `-7.09 dB` / `0.5639`
+    normalized, then `fl_rollback_last_change` restored Track 20 to `-6.84 dB`
+    / `0.5718` normalized. Result artifact:
+    `scratch/product_workflow_naming_live_2026_06_07.json`.
+
+- 2026-06-06: macOS SSE/TCP Live Smoke Sweep and Fader Color Rollback.
+  - Verified path: Ran live verification on FL Studio Producer Edition v25.2.5 [build 5055] with controller build marker `channels-v38` over the SSE server (port 8080) and TCP bridge (port 9787). Executed read-only sweep tools (`fl_diagnose_mix`, `fl_gain_stage`, `fl_preflight_project`, `fl_analyze_routing`, `fl_analyze_project_organization`, and `fl_setup_chain`). Performed a write-and-rollback color modification test on Track 20 ("Toploop") from `#ABA362` to `#FF0080` and back.
+  - Result: All read-only tools correctly reported findings, safety boundaries, and mapped Knowledgebase policy rule references. The fader track color test successfully verified write, readback, LIFO rollback, and clean restoration to the original state.
+
 - 2026-06-05: v2.0.0 Architecture Foundation & Tool Efficiency.
   - Verified path: Executed static safety audit (`scripts/audit_tool_safety.py`). Consolidated dozens of single-purpose functions into unified `fl_transport`, `fl_mixer`, `fl_channel` endpoints. Replaced legacy single-tool registration with centralized operation registry. Validated `safe_write` and `safe_write_group` behavior under the new architecture. Updated package version and documentation.
   - Result: Massive reduction in tool-selection noise and MCP token consumption. Backward-incompatible tool API overhaul correctly signaled via major version bump. Rollback layer integrity maintained.
@@ -433,4 +498,3 @@ Transport-only runtime controls such as play, stop, and preview note triggering
 do not change the saved project structure, but any persisted project mutation
 such as tempo, pattern edits, channel routing, note writes, or mixer/plugin
 changes must follow this contract.
-

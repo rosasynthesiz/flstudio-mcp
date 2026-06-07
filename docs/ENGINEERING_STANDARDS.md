@@ -126,8 +126,8 @@ Current priority order:
    - Effect Slot and Native EQ Pack.
 3. Product-level workflows:
    - Project Organizer MVP.
-   - Routing Doctor 2.0.
-   - Project Doctor / Health Report.
+   - Routing Review 2.0.
+   - Project Health / Preflight Report.
    - Export readiness report.
 4. Creative intelligence and experimental infrastructure.
 
@@ -191,7 +191,7 @@ export DYLD_LIBRARY_PATH="/usr/local/opt/expat/lib:${DYLD_LIBRARY_PATH:-}"
 
 - Build tools around user workflows, not just one-to-one API wrappers.
 - Prefer high-signal reports and guided fixes over large, flat tool surfaces.
-- Project Doctor, Routing Doctor, and organizer workflows must orchestrate safe
+- Project Health, Routing Review, and organizer workflows must orchestrate safe
   primitives instead of creating a second write layer.
 - Bulk cleanup should be previewable and grouped into named rollback units.
 - User-facing results should be explicit about what changed, what was skipped,

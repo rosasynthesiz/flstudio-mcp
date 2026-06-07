@@ -1,0 +1,45 @@
+{
+  "date": "2026-06-07",
+  "agent_author": "Codex",
+  "topic": "Electro template placeholder routes cause false findings",
+  "affected_file_api": [
+    "src/fl_studio_mcp/music/mix_doctor.py",
+    "src/fl_studio_mcp/tools/routing.py",
+    "fl_review_mix",
+    "fl_detect_cleanup_candidates",
+    "Project Health / Preflight"
+  ],
+  "context": "Live Electro template routes default-named inserts 22-115 to Instruments Mix as placeholders.",
+  "observation": "Outgoing non-Master routes on default-named empty tracks are template reservation evidence, not necessarily audio occupancy.",
+  "tested_values": {
+    "placeholder_range": [22, 115],
+    "placeholder_route_dst": 120,
+    "placeholder_route_dst_name": "Instruments \u25ba Mix",
+    "placeholder_route_level": 0.8,
+    "mix_doctor_low_findings": 111,
+    "cleanup_unused_tracks": 95
+  },
+  "result": "Suppress missing_hpf, ungrouped, audible-track, and unused-cleanup findings for these tracks after matching the Electro topology.",
+  "confidence_level": "measured_once",
+  "source_method": "Read-only live dump and probes on FL Studio Producer Edition v25.2.5 [build 5055], controller build channels-v38.",
+  "valid_ranges": {
+    "route_level": "Observed 0.8 for placeholder-to-bus routes"
+  },
+  "example": "Insert 22 -> Instruments \u25ba Mix @0.8 should not be flagged as missing_hpf or unused_mixer_track in Electro.",
+  "known_pitfalls": [
+    "Do not globally ignore all default-named routed tracks.",
+    "Match a recognizable template topology before suppressing findings.",
+    "Do not treat template reservation as proof that a track contains audio."
+  ],
+  "reproduction_steps": [
+    "Open Electro.",
+    "Run scratch/scripts/read_electro_template_live.py.",
+    "Run scripts/run_mix_doctor.py --no-params --max-tracks 126 --peak-samples 1.",
+    "Run detect_cleanup(get_bridge(), max_plugin_checks=120)."
+  ],
+  "open_questions": [
+    "Do the other 12 templates use similar placeholder route banks?",
+    "Should template reservations be exposed as info-level context in user-facing reports?"
+  ],
+  "next_recommended_action": "Add a topology classifier and fixture-backed tests before changing user-facing findings."
+}

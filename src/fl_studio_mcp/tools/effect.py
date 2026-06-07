@@ -138,6 +138,8 @@ def _bridge_call(bridge, command: str, params: dict | None = None) -> dict:
     except FLNotRunning as e:
         raise RuntimeError(str(e)) from e
     except FLTimeout as e:
-        raise RuntimeError(f"{e}. Try fl_transport(action='ping') to confirm the controller is alive.") from e
+        raise RuntimeError(
+            f"{e}. Try fl_transport(action='ping') to confirm the controller is alive."
+        ) from e
     except FLCommandFailed as e:
         raise RuntimeError(f"FL Studio rejected the command: {e}") from e

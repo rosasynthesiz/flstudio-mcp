@@ -1,9 +1,9 @@
-"""MCP tools for Mix Doctor: diagnose the whole mix + apply gated fixes.
+"""MCP tools for Mix Review: diagnose the whole mix + apply gated adjustments.
 
-fl_diagnose_mix is READ-ONLY (thin paginated snapshot + transparent threshold
-diagnosis). fl_apply_mix_fix applies ONE proposed fix through the safety layer
+fl_review_mix is READ-ONLY (thin paginated snapshot + transparent threshold
+diagnosis). fl_apply_mix_adjustment applies ONE proposed adjustment through the safety layer
 (snapshot -> write -> FRESH readback -> rollback-able). Diagnosis never writes;
-apply is a separate explicit call so the human approves each fix in conversation.
+apply is a separate explicit call so the human approves each adjustment in conversation.
 
 Grouping and EQ moves are surfaced as proposals but applied via the existing
 fl_group_tracks / fl_apply_eq_intent tools (reuse, not re-implement).
@@ -17,9 +17,29 @@ from typing import Annotated
 from fastmcp import FastMCP
 from pydantic import Field
 
-from .. import operations, protocol, safety
+from .. import kb_policy, operations, protocol, safety
 from ..connection import fetch_all_pages, get_bridge
 from ..music import mix_doctor as md
+from ..project_templates import compact_context
+
+
+def _compact_kb_fields(row: dict) -> dict:
+    """Compact KB metadata for per-finding/proposal tool output."""
+    rule_ids = [str(rule_id) for rule_id in (row.get("kb_rule_ids") or []) if rule_id]
+    if not rule_ids:
+        return {}
+    out = {"kb_rule_ids": rule_ids}
+    confidence = {}
+    for rule_id in rule_ids:
+        ref = kb_policy.rule_ref(rule_id)
+        level = ref.get("confidence_level")
+        if level is not None:
+            confidence[rule_id] = level
+    if confidence:
+        out["kb_confidence_levels"] = confidence
+    if row.get("safety_limits"):
+        out["safety_limits"] = row["safety_limits"]
+    return out
 
 
 def register(mcp: FastMCP) -> None:
@@ -56,21 +76,58 @@ def register(mcp: FastMCP) -> None:
                 prop["target_db"] = p["target_fader_db"]
             elif p["kind"] == "group":
                 prop["tracks"] = p.get("args")
+            prop.update(_compact_kb_fields(p))
             proposals.append(prop)
+        findings = []
+        used_rule_ids = set()
+        for f in diag["findings"]:
+            row = {k: f[k] for k in ("rule", "severity", "track", "evidence", "message")}
+            row.update(_compact_kb_fields(f))
+            used_rule_ids.update(f.get("kb_rule_ids") or [])
+            findings.append(row)
+        for p in proposals:
+            used_rule_ids.update(p.get("kb_rule_ids") or [])
         return {
             "track_count": snap["track_count"],
             "levels_valid": snap.get("levels_valid"),
+            "template_context": compact_context(diag.get("template_context") or {}),
             "summary": plan["summary"],
-            "findings": [
-                {k: f[k] for k in ("rule", "severity", "track", "evidence", "message")}
-                for f in diag["findings"]
-            ],
+            "findings": findings,
             "proposals": proposals,
             "notes": plan["notes"],
+            "kb_policy_refs": kb_policy.rule_refs(sorted(used_rule_ids)),
         }
 
-    @mcp.tool(annotations={"title": "Diagnose the mix (Mix Doctor)", **_RO})
-    def fl_diagnose_mix() -> dict:
+    def _low_end_stereo_result(snap):
+        report = md.low_end_stereo_safety(snap)
+        findings = []
+        manual_checks = []
+        used_rule_ids = set()
+        for f in report["findings"]:
+            row = {k: f[k] for k in ("rule", "severity", "track", "evidence", "message")}
+            row.update(_compact_kb_fields(f))
+            used_rule_ids.update(f.get("kb_rule_ids") or [])
+            findings.append(row)
+        for check in report["manual_checks"]:
+            row = {k: check[k] for k in ("topic", "check", "reason")}
+            row.update(_compact_kb_fields(check))
+            used_rule_ids.update(check.get("kb_rule_ids") or [])
+            manual_checks.append(row)
+        return {
+            "track_count": report["track_count"],
+            "levels_valid": report["levels_valid"],
+            "template_context": compact_context(report.get("template_context") or {}),
+            "summary": report["summary"],
+            "low_end_tracks": report["low_end_tracks"],
+            "findings": findings,
+            "manual_checks": manual_checks,
+            "notes": report["notes"],
+            "analysis_limits": report["analysis_limits"],
+            "kb_policy_refs": kb_policy.rule_refs(sorted(used_rule_ids)),
+        }
+
+    @mcp.tool(annotations={"title": "Review mix", **_RO})
+    def fl_review_mix() -> dict:
         """Scan the WHOLE mix and report problems + proposed fixes. READ-ONLY.
 
         Transparent threshold rules (clipping, headroom, level imbalance, missing
@@ -106,8 +163,47 @@ def register(mcp: FastMCP) -> None:
             **_result(snap),
         }
 
-    @mcp.tool(annotations={"title": "Apply a Mix Doctor fix (gated)", **_WR})
-    def fl_apply_mix_fix(
+    @mcp.tool(annotations={"title": "Review low-end and stereo safety", **_RO})
+    def fl_review_low_end_stereo() -> dict:
+        """Report bass/sub mono compatibility, stereo-width risk, and Master
+        headroom. READ-ONLY.
+
+        Uses the same mixer snapshot path as Mix Review, plus mixer pan and
+        stereo-separation metadata where the controller exposes it. This does
+        not measure true phase correlation, mono-sum cancellation, or a spectral
+        low band; those remain manual checks in the returned report.
+
+        Safety: Read-Only.
+        """
+        try:
+            bridge = get_bridge()
+            wmax = md.get_watcher().last_max()
+            snap = md.gather_snapshot(bridge, with_params=False, peaks_override=wmax or None)
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        levels_valid = bool(wmax or snap.get("levels_valid"))
+        guidance = (
+            "Structural pan/stereo checks are available. For reliable hot low-end "
+            "and Master-headroom evidence, press PLAY or use watch mode "
+            "(fl_mix_watch_start -> play -> fl_mix_watch_stop)."
+            if not levels_valid
+            else "Read-only report. Treat stereo/phase items as manual checks; "
+            "apply no widening, mid-side EQ, mastering, render, or plugin-loading "
+            "automation from this assistant."
+        )
+        return {
+            "ok": True,
+            "playing": snap.get("playing"),
+            "needs_levels": not levels_valid,
+            "peak_source": "watch (full-song)"
+            if wmax
+            else snap.get("peak_window", {}).get("source"),
+            "guidance": guidance,
+            **_low_end_stereo_result(snap),
+        }
+
+    @mcp.tool(annotations={"title": "Apply mix adjustment (gated)", **_WR})
+    def fl_apply_mix_adjustment(
         kind: Annotated[
             str, Field(description="Fix kind. Currently 'trim_volume' (the proven, safe one).")
         ],
@@ -118,11 +214,11 @@ def register(mcp: FastMCP) -> None:
             float | None, Field(description="Absolute target fader level in dB, e.g. -3.0.")
         ] = None,
     ) -> dict:
-        """Apply ONE Mix Doctor fix via the safety layer: snapshot -> write ->
+        """Apply ONE Mix Review adjustment via the safety layer: snapshot -> write ->
         FRESH readback -> rollback-able with fl_rollback_last_change.
 
         Call this ONLY after the user approves the exact change in conversation
-        (Mix Doctor never auto-applies). 'trim_volume' sets a mixer track's fader
+        (Mix Review never auto-applies). 'trim_volume' sets a mixer track's fader
         to target_db. For grouping use fl_group_tracks; for EQ use
         fl_apply_eq_intent.
 
@@ -163,7 +259,7 @@ def register(mcp: FastMCP) -> None:
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
-    @mcp.tool(annotations={"title": "Start full-song peak watch (Mix Doctor)", **_RO})
+    @mcp.tool(annotations={"title": "Start full-song peak watch (Mix Review)", **_RO})
     def fl_mix_watch_start(
         interval_ms: Annotated[
             int, Field(ge=50, le=1000, description="Poll interval per round in ms (default 150).")
@@ -199,7 +295,7 @@ def register(mcp: FastMCP) -> None:
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
-    @mcp.tool(annotations={"title": "Peak watch status (Mix Doctor)", **_RO})
+    @mcp.tool(annotations={"title": "Peak watch status (Mix Review)", **_RO})
     def fl_mix_watch_status() -> dict:
         """Is a peak watch running, and for how long / how many polls so far?
 
@@ -207,7 +303,7 @@ def register(mcp: FastMCP) -> None:
         """
         return {"ok": True, **md.get_watcher().status()}
 
-    @mcp.tool(annotations={"title": "Stop peak watch + diagnose (Mix Doctor)", **_RO})
+    @mcp.tool(annotations={"title": "Stop peak watch + review mix", **_RO})
     def fl_mix_watch_stop() -> dict:
         """Stop the peak watch and diagnose on the FULL-SONG running-max peaks
         captured across the whole watch (accurate clipping/headroom/imbalance vs
@@ -235,11 +331,11 @@ def register(mcp: FastMCP) -> None:
             **_result(snap),
         }
 
-    @mcp.tool(annotations={"title": "Gain staging assistant (Mix Doctor)", **_RO})
+    @mcp.tool(annotations={"title": "Review gain staging", **_RO})
     def fl_gain_stage() -> dict:
         """Propose per-track fader trims so each track's peak sits in a healthy
         band (~-12..-6 dBFS, aim -9) and the Master keeps -3..-6 dB headroom.
-        READ-ONLY proposals -- apply approved ones via fl_apply_mix_fix (rollback).
+        READ-ONLY proposals -- apply approved ones via fl_apply_mix_adjustment (rollback).
 
         Uses FULL-SONG peaks from a recent watch (fl_mix_watch_start -> play ->
         fl_mix_watch_stop) when available; else a ~1.2s snapshot (prefer watch).
@@ -274,9 +370,13 @@ def register(mcp: FastMCP) -> None:
                 "alternative": p.get("alternative", False),
                 "human": p["human"],
                 "reason": p["reason"],
+                **_compact_kb_fields(p),
             }
             for p in plan["plans"]
         ]
+        used_rule_ids = sorted(
+            {rule_id for proposal in proposals for rule_id in (proposal.get("kb_rule_ids") or [])}
+        )
         return {
             "ok": True,
             "peak_source": "watch (full-song)"
@@ -286,7 +386,8 @@ def register(mcp: FastMCP) -> None:
             "healthy_band_db": plan["band"],
             "proposals": proposals,
             "notes": plan["notes"],
-            "guidance": "Apply approved trims: fl_apply_mix_fix(kind='trim_volume', track, "
+            "kb_policy_refs": kb_policy.rule_refs(used_rule_ids),
+            "guidance": "Apply approved trims: fl_apply_mix_adjustment(kind='trim_volume', track, "
             "target_db=<proposal.target_db>). One at a time; undo via "
             "fl_rollback_last_change. Skip the 'alternative' Master trim if you "
             "already applied the source trims.",
@@ -359,6 +460,9 @@ def register(mcp: FastMCP) -> None:
             "track names + peaks, NOT FL's output spectrum. Reference bands are real "
             "(file analysis). +level_delta = your mix hotter; +band delta_pct = your "
             "mix has more energy in that band than the reference.",
-            "guidance": "Nudge via fl_apply_eq_intent (balance) / fl_apply_mix_fix (level): e.g. "
+            "kb_policy_refs": kb_policy.rule_refs(
+                ["master_peak_boundary", "mix_doctor_existing_plugin_only"]
+            ),
+            "guidance": "Nudge via fl_apply_eq_intent (balance) / fl_apply_mix_adjustment (level): e.g. "
             "positive low delta -> high-pass/trim lows; negative high delta -> add_air.",
         }

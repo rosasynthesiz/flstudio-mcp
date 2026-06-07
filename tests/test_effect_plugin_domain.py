@@ -22,7 +22,13 @@ class FakeBridge:
     def __init__(self) -> None:
         self.slots: dict[tuple[int, int], dict] = {
             (1, 0): {"track": 1, "slot": 0, "plugin": "Fruity EQ 2", "mix": 0.8, "enabled": True},
-            (1, 1): {"track": 1, "slot": 1, "plugin": "Fruity Limiter", "mix": 0.7, "enabled": True},
+            (1, 1): {
+                "track": 1,
+                "slot": 1,
+                "plugin": "Fruity Limiter",
+                "mix": 0.7,
+                "enabled": True,
+            },
         }
         self.track_slots_enabled = {1: True}
         self.eq = {
@@ -49,13 +55,18 @@ class FakeBridge:
             return {"mixer_track_count": 2}
 
         if command == protocol.CMD_MIXER_GET_SLOT:
-            return dict(self.slots.get((params["track"], params["slot"]), {
-                "track": params["track"],
-                "slot": params["slot"],
-                "plugin": "",
-                "mix": 0.8,
-                "enabled": True,
-            }))
+            return dict(
+                self.slots.get(
+                    (params["track"], params["slot"]),
+                    {
+                        "track": params["track"],
+                        "slot": params["slot"],
+                        "plugin": "",
+                        "mix": 0.8,
+                        "enabled": True,
+                    },
+                )
+            )
 
         if command == protocol.CMD_MIXER_SET_SLOT_MIX:
             slot = self.slots[(params["track"], params["slot"])]
@@ -92,7 +103,11 @@ class FakeBridge:
             }
 
         if command == protocol.CMD_PLUGIN_GET_PARAMS:
-            rows = [dict(row) for (track, slot, _idx), row in self.params.items() if track == params["track"] and slot == params["slot"]]
+            rows = [
+                dict(row)
+                for (track, slot, _idx), row in self.params.items()
+                if track == params["track"] and slot == params["slot"]
+            ]
             return {"total": len(rows), "params": rows, "next_start": None}
 
         if command == protocol.CMD_PLUGIN_GET_PARAM:

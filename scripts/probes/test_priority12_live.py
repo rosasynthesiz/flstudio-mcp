@@ -23,7 +23,7 @@ from fl_studio_mcp.connection import (
     FLCommandFailed,  # noqa: E402
     get_bridge,  # noqa: E402
 )
-from fl_studio_mcp.tools import effects, phase3, pianoroll  # noqa: E402
+from fl_studio_mcp.tools import effects, patterns_playlist, pianoroll  # noqa: E402
 
 
 class MockMCP:
@@ -99,10 +99,10 @@ def main() -> int:
 
     # Register tools and bind live bridge.
     mcp = MockMCP()
-    phase3.register(mcp)
+    patterns_playlist.register(mcp)
     effects.register(mcp)
     pianoroll.register(mcp)
-    phase3.get_bridge = lambda: bridge
+    patterns_playlist.get_bridge = lambda: bridge
     effects.get_bridge = lambda: bridge
     pianoroll.get_bridge = lambda: bridge
 

@@ -58,14 +58,14 @@ APIs we have already documented or probed.
 6. **Safety / Change History Pack**
    - Expose recent MCP changelog entries, export the changelog, and rollback by
      recent index or change id.
-   - Add named grouped rollback units for organizer, routing doctor, and bulk
+   - Add named grouped rollback units for organizer, routing cleanup, and bulk
      cleanup operations.
    - Optionally anchor large grouped writes with `general.saveUndo` where FL
      exposes it, without replacing MCP-level restore payloads.
 
-7. **Project Doctor**
+7. **Project Health**
    - Build as orchestration over safe primitives, not as a second write layer.
-   - Combine Mix Doctor, Routing Doctor, organizer findings, plugin/effect-slot
+   - Combine Mix Review, Routing Review, organizer findings, plugin/effect-slot
      state, muted/soloed tracks, duplicate names, too-hot levels, and export
      readiness into one read-only report.
    - Apply one approved fix at a time, each with its own rollback unit.
@@ -126,8 +126,8 @@ APIs we have already documented or probed.
 
 3. **Product-level workflows**
    - Project Organizer MVP.
-   - Routing Doctor 2.0.
-   - Project Doctor / Health Report.
+   - Routing Review 2.0.
+   - Project Health / Preflight Report.
    - Export readiness report.
 
 4. **Creative intelligence**
@@ -174,7 +174,7 @@ and compatibility with the safety contract.
      until restore data is complete.
    - Use one grouped rollback unit for multi-pattern organizer actions.
 
-4. **Project Doctor / Export Readiness Report**
+4. **Project Health / Export Readiness Report**
    - Build a read-only aggregate report over existing safe primitives:
      routing, mixer peaks, plugin parameter visibility, muted/solo states,
      duplicate or empty names, unassigned channels, suspicious pattern lengths,
@@ -216,4 +216,3 @@ bundle.
 
 Each phase is shippable on its own. Each ends with `python scripts/test_bridge.py`
 still passing.
-

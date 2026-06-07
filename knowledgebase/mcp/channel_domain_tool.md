@@ -14,9 +14,11 @@
 
 ## Observation
 
-`fl_channel(action, params)` is registered as a new additive `write-safe`
-MCP tool in the v1.2 shadow phase. It does not remove any legacy channel
-tools. It dispatches through `operations.prepare_operation("channel", ...)`,
+`fl_channel(action, params)` is the public channel domain entrypoint in the
+compact v2.0 tool surface. It was introduced additively during the v1.2
+shadow phase; legacy channel aliases covered by this domain tool are now
+retired from public registration. It dispatches through
+`operations.prepare_operation("channel", ...)`,
 which validates the action and parameters using the existing
 `OperationSpec` registry before any FL mutation occurs.
 
@@ -59,14 +61,14 @@ data server-side.
 - `list` paginates automatically via `fetch_all_pages`; all channels are
   returned in a single MCP response.
 - `classify` calls `fetch_all_pages` on `CMD_CHANNEL_ROUTING_SUMMARY` and
-  groups results by `type.label`. This mirrors `fl_classify_channels` in
-  the legacy `channels.py` tools module.
+  groups results by `type.label`. This preserves the previous channel
+  classification behavior through the domain tool.
 - The tool annotation is `write-safe` because the tool can execute
   persistent writes; individual action safety is enforced by registry
   dispatch and documented in the docstring.
-- Legacy channel tools (`fl_get_channel_details`, `fl_set_channel_name`,
-  `fl_set_channel_mixer_track`, step sequencer tools, audio clip tools, etc.)
-  remain registered for the shadow phase.
+- Legacy low-level channel aliases for details, naming, mixer assignment, and
+  step sequencing are retired from public registration. Specialized workflow
+  tools such as audio-clip helpers remain separate public tools.
 
 ---
 
@@ -90,5 +92,5 @@ data server-side.
 
 ## Next Recommended Action
 
-- Implement `fl_pattern` / `fl_playlist` domain tools (Slice 08), following
-  the same registry-dispatch pattern.
+- Keep `fl_channel` aligned with the operation registry and public
+  registration baseline.

@@ -1,0 +1,75 @@
+{
+  "date": "2026-06-06",
+  "agent_author": "Codex",
+  "topic": "Public MCP product workflow naming cleanup",
+  "affected_file_api": [
+    "src/fl_studio_mcp/tools/mix_doctor.py",
+    "src/fl_studio_mcp/tools/routing.py",
+    "src/fl_studio_mcp/tools/project_doctor.py",
+    "FastMCP public tool registration",
+    "docs/USER_GUIDE.md",
+    "ROADMAP.md",
+    "evals/evals.json",
+    "knowledgebase policy tool_implications"
+  ],
+  "context": "Product workflow tools overused the Doctor naming pattern. The branch already allows API-breaking public tool-surface changes, so this pass removes old public names instead of adding compatibility aliases.",
+  "observation": "Mix, routing, project health, preflight, and guided cleanup workflows can keep the same safety behavior while exposing clearer public names.",
+  "tested_values": [
+    "fl_review_mix",
+    "fl_apply_mix_adjustment",
+    "fl_review_routing",
+    "fl_plan_routing_cleanup",
+    "fl_apply_routing_cleanup",
+    "fl_apply_bus_layout",
+    "fl_project_health_overview",
+    "fl_check_project_preflight",
+    "fl_start_guided_cleanup",
+    "fl_get_guided_cleanup_context",
+    "mix_review_watch",
+    "health_overview",
+    "project_preflight"
+  ],
+  "result": "The public FastMCP names were renamed without adding new FL Studio API capability claims or new write paths. Existing rollback-backed write safety remains unchanged.",
+  "confidence_level": "implementation_verified",
+  "source_method": [
+    "static code review",
+    "focused offline tests",
+    "tool registration baseline check",
+    "JSON parse check",
+    "static safety audit",
+    "2026-06-07 live macOS smoke via scripts/probes/test_product_workflow_naming_live.py"
+  ],
+  "valid_ranges": "Not applicable; this entry documents public MCP names rather than FL Studio parameter ranges.",
+  "example": "Use fl_review_mix for read-only mix diagnosis and fl_apply_mix_adjustment for one approved rollback-backed trim instead of the removed fl_diagnose_mix and fl_apply_mix_fix public names.",
+  "known_pitfalls": [
+    "Do not keep old fl_*doctor* aliases in registration unless a future compatibility policy explicitly adds them.",
+    "Historical live verification notes may still mention old names because those are records of the tool surface that existed at the time."
+  ],
+  "reproduction_steps": [
+    "Register the MCP tools and inspect the public tool set.",
+    "Run focused tests for mix review, project health, routing cleanup, and KB policy references.",
+    "Run static safety audits.",
+    "Run FLSTUDIO_MCP_TRANSPORT=tcp .venv/bin/python scripts/probes/test_product_workflow_naming_live.py against a live FL Studio session."
+  ],
+  "open_questions": [
+    "Whether future product workflow names should prefer Review, Assistant, Overview, or Cleanup on a case-by-case basis."
+  ],
+  "next_recommended_action": "Keep future public workflow names descriptive and avoid defaulting to Doctor unless the user-facing distinction is intentional.",
+  "mapping": {
+    "fl_diagnose_mix": "fl_review_mix",
+    "fl_apply_mix_fix": "fl_apply_mix_adjustment",
+    "fl_analyze_routing": "fl_review_routing",
+    "fl_plan_routing_fix": "fl_plan_routing_cleanup",
+    "fl_apply_routing_batch": "fl_apply_routing_cleanup",
+    "fl_create_bus_layout": "fl_apply_bus_layout",
+    "fl_project_health_dashboard": "fl_project_health_overview",
+    "fl_preflight_project": "fl_check_project_preflight",
+    "fl_start_guided_fix_mode": "fl_start_guided_cleanup",
+    "fl_get_guided_fix_context": "fl_get_guided_cleanup_context"
+  },
+  "output_field_mapping": {
+    "mix_doctor_watch": "mix_review_watch",
+    "health_dashboard": "health_overview",
+    "preflight_project": "project_preflight"
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "date": "2026-06-07",
+  "agent_author": "Codex",
+  "topic": "Data-driven FL Studio template profile classifier",
+  "affected_api": [
+    "src/fl_studio_mcp/project_templates.py",
+    "knowledgebase/templates/profiles/*.json",
+    "Mix Review",
+    "Low-End/Stereo Review",
+    "Routing Review/Cleanup",
+    "Project Health / Preflight",
+    "Project Organizer"
+  ],
+  "context": "The user captured 12 additional standard FL Studio template profiles after the initial Electro profile and requested profile-driven recognition across product workflows.",
+  "observation": "Compact template profiles contain enough mixer names, routes, channel routes, reserved placeholder ranges, control routes, roles, and tool-policy flags to classify and preserve standard template topology without hard-coded per-template logic.",
+  "tested_values": {
+    "validated_profiles": [
+      "breakbeat",
+      "chillout",
+      "chillout_ambient",
+      "drum_and_bass",
+      "dubstep",
+      "edm_house",
+      "electro",
+      "electro_template",
+      "funk",
+      "hiphop_trap",
+      "jazz",
+      "metal",
+      "rock",
+      "trap"
+    ],
+    "unique_template_names": 13,
+    "ambiguous_template_pairs": [
+      ["Chillout", "Chillout-Ambient"],
+      ["HipHop-Trap", "Trap"],
+      ["Funk", "Rock"]
+    ],
+    "runtime_role_mapping": {
+      "reserved_placeholder": "template_reserved_placeholder"
+    }
+  },
+  "result": "The classifier now loads compact profiles, scores live readbacks against names/routes/channel routes/reserved ranges, annotates runtime track roles and tool policies, and returns compact candidate/ambiguity metadata for product workflows.",
+  "confidence_level": "implementation_verified",
+  "source_method": [
+    "scripts/validate_template_profiles.py",
+    "tests/test_template_topology.py",
+    "tests/test_template_profile_tools.py",
+    "tests/test_mix_doctor.py",
+    "tests/test_project_doctor.py"
+  ],
+  "valid_ranges": {
+    "roles": [
+      "master",
+      "premaster",
+      "stem_bus",
+      "source",
+      "sidechain_control",
+      "reserved_placeholder",
+      "utility",
+      "unknown"
+    ],
+    "tool_policy_keys": [
+      "suppress_missing_hpf",
+      "suppress_unused_track",
+      "suppress_ungrouped",
+      "suppress_low_end_width",
+      "suppress_offcenter_bass",
+      "suppress_layering_warning_without_audio"
+    ],
+    "control_route_level_match": "Exact profile level when live level is available; missing live level is accepted as a conservative control-route match."
+  },
+  "known_pitfalls": [
+    "Do not claim exact template identity for structurally identical profiles; use candidate_templates and ambiguous=true.",
+    "Do not suppress generic diagnostics globally; suppression must come from a matched profile role/tool_policy.",
+    "Do not feed raw dumps into implementation context when compact validated profiles are available."
+  ],
+  "reproduction_steps": [
+    "Run PYTHONPATH=src .venv/bin/python scripts/validate_template_profiles.py.",
+    "Run PYTHONPATH=src .venv/bin/python -m pytest tests/test_template_topology.py tests/test_template_profile_tools.py.",
+    "Run existing Mix Doctor and Project Doctor regression tests."
+  ],
+  "open_questions": [
+    "Find an additional read-only discriminator if exact UI template names are required for Chillout/Chillout-Ambient, HipHop-Trap/Trap, or Funk/Rock.",
+    "Decide whether future live smoke tests should capture plugin-parameter fingerprints for ambiguous templates."
+  ],
+  "next_recommended_action": "Keep future standard-template changes data-driven in knowledgebase/templates/profiles/ and extend runtime logic only when a new readback field is needed."
+}

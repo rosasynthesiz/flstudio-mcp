@@ -1,15 +1,120 @@
 {
-  "date": "2026-05-23",
-  "author": "System Migration",
-  "topic": "SysEx and Tempo Bugs in Controller Script",
-  "affected_api": "fl_controller/FLStudioMCP/device_FLStudioMCP.py, midi",
+  "date": "2026-06-06",
+  "agent_author": "Codex",
+  "topic": "Mix Review diagnosis and fix policy",
   "confidence_level": "implementation_verified",
-  "source_method": "FIX_REPORT.md post-mortem",
-  "context": "Diagnosing bridge failure and tempo scaling bugs.",
-  "observation": "SysEx needs OnSysEx callback in modern FL builds. midi.REC_Updated was replaced by REC_UpdateValue. REC_FromMIDI breaks raw tempo scaling.",
-  "result": "Code refactored to support both OnMidiMsg and OnSysEx. Tempo scaling fixed by dropping REC_FromMIDI flag.",
-  "tested_values": "Tempo set/get end-to-end verified.",
-  "known_pitfalls": "Virtual MIDI ports with duplicate I/O directions confuse midiOutSysex(). Stale controller deployments.",
-  "open_questions": "None.",
-  "next_recommended_action": "Strictly separate MIDI ports (RX input only, TX output only)."
+  "source_method": [
+    "tests/test_mix_doctor.py",
+    "knowledgebase/mixing/mixing_fundamentals.json",
+    "knowledgebase/mastering/mastering_boundaries.json",
+    "src/fl_studio_mcp/music/mix_doctor.py",
+    "src/fl_studio_mcp/tools/mix_doctor.py"
+  ],
+  "rules": [
+    {
+      "id": "mix_doctor_master_output_boundary",
+      "domain": "mix_doctor_levels",
+      "recommendation": "Treat Master peaks near or above 0 dBFS as output/render clipping or headroom risk and make them high priority.",
+      "rationale": "The Master feeds fixed-bit-depth render/output paths where sustained clipping can become destructive.",
+      "tool_implications": [
+        "fl_review_mix",
+        "fl_mix_watch_stop",
+        "fl_check_project_preflight"
+      ],
+      "related_rules": [
+        "master_peak_boundary"
+      ],
+      "safety_limits": [
+        "Use measured peak/readback data where available.",
+        "Keep diagnosis read-only; writes require explicit user approval."
+      ],
+      "confidence_level": "implementation_verified"
+    },
+    {
+      "id": "mix_doctor_insert_headroom_context",
+      "domain": "mix_doctor_levels",
+      "recommendation": "Treat insert-track peaks above 0 dBFS as headroom, balance, or stem-render risk rather than the same failure class as Master/output clipping.",
+      "rationale": "FL Studio can process internally in floating point, but hot inserts still reduce practical headroom and can make downstream processing or stems risky.",
+      "tool_implications": [
+        "fl_review_mix",
+        "fl_gain_stage"
+      ],
+      "related_rules": [
+        "master_peak_boundary"
+      ],
+      "safety_limits": [
+        "Do not call insert-track peaks output clipping unless the Master/output path also clips.",
+        "Prefer source evidence and exact peak values in the finding."
+      ],
+      "confidence_level": "implementation_verified"
+    },
+    {
+      "id": "mix_doctor_source_trim_first",
+      "domain": "mix_doctor_fix_planning",
+      "recommendation": "Prefer source-track or bus trims before treating a Master fader reduction as the default fix.",
+      "rationale": "Source trims improve balance and lower the Master load without shrinking the whole mix indiscriminately.",
+      "tool_implications": [
+        "fl_gain_stage",
+        "fl_apply_mix_adjustment"
+      ],
+      "related_rules": [
+        "source_or_bus_trim_before_master_trim"
+      ],
+      "safety_limits": [
+        "Apply one approved rollback-backed trim or one named grouped rollback unit at a time.",
+        "Avoid applying source trims and a Master alternative blindly together."
+      ],
+      "confidence_level": "implementation_verified"
+    },
+    {
+      "id": "mix_doctor_existing_plugin_only",
+      "domain": "mix_doctor_plugin_guidance",
+      "recommendation": "EQ, compression, limiting, reverb, delay, and mastering suggestions may configure already-loaded plugins only through safe wrappers.",
+      "rationale": "Plugin loading and render/mastering automation are out of scope for the current MCP safety contract.",
+      "tool_implications": [
+        "fl_apply_eq_intent",
+        "fl_apply_compression_intent",
+        "fl_apply_reverb_intent",
+        "fl_apply_delay_intent",
+        "fl_plugin"
+      ],
+      "related_rules": [
+        "maximus_loaded_plugin_only",
+        "fl_cloud_mastering_manual_only"
+      ],
+      "safety_limits": [
+        "Do not load missing plugins.",
+        "Do not write uncalibrated plugin parameters.",
+        "Do not claim render, save, or FL Cloud Mastering automation."
+      ],
+      "confidence_level": "implementation_verified"
+    },
+    {
+      "id": "low_end_stereo_assistant_read_only",
+      "domain": "low_end_stereo_safety",
+      "recommendation": "Keep Low-End/Stereo Safety Assistant behavior read-only; report mixer pan, mixer stereo separation, low-end layering, and Master headroom as review findings or manual checks rather than automatic fixes.",
+      "rationale": "Current MCP reads mixer pan, stereo separation metadata, track names, and peaks, but it does not expose true phase correlation, mono-sum cancellation, or spectral sub-band width.",
+      "tool_implications": [
+        "fl_review_low_end_stereo"
+      ],
+      "related_rules": [
+        "low_end_mono_compatibility",
+        "master_peak_boundary",
+        "source_or_bus_trim_before_master_trim"
+      ],
+      "safety_limits": [
+        "Do not claim true phase correlation, mono-sum cancellation, or sub-spectrum width from mixer metadata alone.",
+        "Do not apply stereo separation, mid-side EQ, plugin loading, rendering, saving, or mastering automation from this assistant.",
+        "Use playback or full-song watch peaks for hot low-end and Master-headroom findings when level evidence matters."
+      ],
+      "confidence_level": "implementation_verified"
+    }
+  ],
+  "affected_api": "N/A",
+  "observation": "N/A",
+  "tested_values": "N/A",
+  "context": "N/A",
+  "result": "N/A",
+  "open_questions": "N/A",
+  "next_recommended_action": "N/A"
 }

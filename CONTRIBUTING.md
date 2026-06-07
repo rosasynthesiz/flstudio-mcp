@@ -45,7 +45,8 @@ Install steps: clone the repo, cd into it, run `scripts\install_windows.bat` or
 `./scripts/install_macos.sh`, then `pip install -e ".[audio]"` if you'll touch
 the audio analysis code. Wire the MIDI ports in FL (Options > MIDI Settings),
 confirm `[FLStudioMCP] Ready` in FL's Script output, start the bridge with
-`fl-studio-mcp-daemon`, then verify the link by asking your AI assistant to call `fl_ping`.
+`fl-studio-mcp-daemon`, then verify the link by asking your AI assistant to call
+`fl_transport(action="ping")`.
 
 ## Project layout
 
@@ -97,7 +98,7 @@ A good report includes:
 - FL Studio edition and build (e.g. Producer Edition v25.2.5 [build 5319])
 - What you asked the AI assistant to do, and what happened vs. what you expected
 - Relevant FL Script output and server/daemon logs
-- Whether fl_ping succeeds
+- Whether `fl_transport(action="ping")` succeeds
 
 ## Code of conduct
 

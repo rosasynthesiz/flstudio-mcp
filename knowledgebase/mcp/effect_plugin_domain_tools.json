@@ -18,7 +18,7 @@
     "CMD_PLUGIN_GET_PARAM",
     "CMD_PLUGIN_SET_PARAM"
   ],
-  "context": "v1.2 slice 09 adds additive domain tools beside legacy effect/plugin tools for parity testing and lower tool-selection overhead.",
+  "context": "v1.2 slice 09 introduced the effect/plugin domain tools additively for parity testing and lower tool-selection overhead. In the current v2.0 public surface, legacy effect, native EQ, and plugin-parameter aliases covered by fl_effect and fl_plugin are retired.",
   "observation": "fl_effect validates effect-slot and native EQ actions through the operation registry. fl_plugin validates already-loaded plugin list/parameter actions through the registry and resolves string parameter names to concrete integer indices before dispatch. Persistent writes route through safety.safe_write.",
   "tested_values": [
     "effect.get_slot",
@@ -59,5 +59,5 @@
   "open_questions": [
     "Live FL Studio smoke tests were not run in this slice."
   ],
-  "next_recommended_action": "Implement slice 10, the additive Piano Roll domain tool, with extra attention to the existing undo-backed safety model and readback limits."
+  "next_recommended_action": "Keep fl_effect and fl_plugin aligned with the operation registry and public registration baseline."
 }

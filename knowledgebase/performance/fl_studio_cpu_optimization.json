@@ -1,0 +1,142 @@
+{
+  "date": "2026-06-06",
+  "agent_author": "Codex",
+  "topic": "FL Studio CPU optimization guidance",
+  "confidence_level": "docs_confirmed",
+  "source_method": [
+    "https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/app_opt.htm",
+    "https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/envsettings_audio.htm",
+    "scratch/extractions/fWuC-OHsqiY_raw.txt"
+  ],
+  "rules": [
+    {
+      "id": "cpu_meter_is_buffer_deadline",
+      "domain": "cpu_meter",
+      "recommendation": "Explain FL Studio CPU as real-time buffer processing pressure, not total OS CPU usage.",
+      "rationale": "The CPU Meter transcript and manual distinguish FL Studio's audio deadline from OS-wide CPU utilization.",
+      "tool_implications": [
+        "future_performance_review"
+      ],
+      "safety_limits": [
+        "Read-only explanation until a stable CPU metric API is available."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "underruns_live_playback_only",
+      "domain": "buffer_underruns",
+      "recommendation": "Treat clicks, pops, stuttering, and underrun counts as live playback issues; rendered glitches should be investigated as plugin behavior.",
+      "rationale": "The performance manual states underruns do not occur in rendered audio because rendering can take as long as needed.",
+      "tool_implications": [
+        "future_performance_review",
+        "fl_project_health_report"
+      ],
+      "safety_limits": [
+        "Do not mutate project state while diagnosing without a rollback-safe fix plan."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "buffer_guidance_by_cpu_architecture",
+      "domain": "audio_settings",
+      "recommendation": "For manual guidance, use Intel/AMD buffers at least around 10 ms and Apple Silicon sample choices of 128, 192, 256, 512, or 1024 depending on project load.",
+      "rationale": "The official optimization and audio-settings pages distinguish Intel/AMD and Apple Silicon buffer behavior.",
+      "manual_values": {
+        "intel_amd_min_ms": 10,
+        "intel_amd_common_range_ms": [
+          10,
+          40
+        ],
+        "apple_silicon_samples": [
+          128,
+          192,
+          256,
+          512,
+          1024
+        ]
+      },
+      "tool_implications": [
+        "manual_guidance"
+      ],
+      "safety_limits": [
+        "No automatic audio-settings mutation."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "sample_rate_cpu_cost",
+      "domain": "audio_settings",
+      "recommendation": "Prefer 44.1 kHz or 48 kHz for typical production performance; avoid 96/192 kHz unless there is a specific need.",
+      "rationale": "The official optimization manual warns that high sample rates require substantially more calculation.",
+      "manual_values": {
+        "preferred_sample_rates_hz": [
+          44100,
+          48000
+        ],
+        "cpu_heavy_sample_rates_hz": [
+          96000,
+          192000
+        ]
+      },
+      "tool_implications": [
+        "manual_guidance"
+      ],
+      "safety_limits": [
+        "No automatic audio-settings mutation."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "smart_disable_with_cautions",
+      "domain": "plugins",
+      "recommendation": "Suggest Smart Disable as manual CPU guidance only with plugin-specific caution.",
+      "rationale": "The manual says Smart Disable can reduce CPU but may interfere with time-based, envelope-based, or long-decay plugins.",
+      "tool_implications": [
+        "manual_guidance",
+        "future_performance_review"
+      ],
+      "safety_limits": [
+        "No automatic wrapper setting changes.",
+        "Warn about plugins cutting out, timing issues, or long tails."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "parallel_mixer_paths_for_heavy_plugins",
+      "domain": "routing_performance",
+      "recommendation": "For heavy CPU plugins, prefer independent mixer-track paths where musically appropriate and avoid unnecessary shared dependencies.",
+      "rationale": "The optimization manual says each mixer track can be an opportunity for parallel processing, while linked tracks and shared sends can serialize work.",
+      "tool_implications": [
+        "fl_review_routing",
+        "future_performance_review"
+      ],
+      "safety_limits": [
+        "Do not reroute for CPU alone without user approval and rollback-safe grouped writes.",
+        "Musical routing intent takes priority over speculative CPU optimization."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "stretch_modes_cpu_caution",
+      "domain": "audio_clips",
+      "recommendation": "Flag many Audio Clips using real-time Stretch or Stretch Pro modes as a possible CPU issue, but keep changes manual until API support is verified.",
+      "rationale": "The optimization manual warns Stretch and Stretch Pro consume far more CPU than Resample when not needed for tempo changes.",
+      "tool_implications": [
+        "fl_inspect_audio_clips",
+        "future_performance_review"
+      ],
+      "safety_limits": [
+        "Do not claim automatic Stretch/Stretch Pro read or write support.",
+        "Follow existing audio-clip API limitation policy."
+      ],
+      "confidence_level": "docs_confirmed"
+    }
+  ],
+  "affected_api": "N/A",
+  "observation": "N/A",
+  "tested_values": "N/A",
+  "context": "N/A",
+  "result": "N/A",
+  "open_questions": "N/A",
+  "next_recommended_action": "N/A"
+}

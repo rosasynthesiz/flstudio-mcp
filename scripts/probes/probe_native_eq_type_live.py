@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fl_studio_mcp import protocol, safety  # noqa: E402
 from fl_studio_mcp.connection import FLCommandFailed, get_bridge  # noqa: E402
 
-EXPECTED_BUILD = "channels-v38"
+EXPECTED_BUILD = "channels-v39"
 HIGH_PASS_TYPE = 3
 
 

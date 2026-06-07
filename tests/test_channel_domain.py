@@ -16,7 +16,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fl_studio_mcp import protocol, safety  # noqa: E402
 from fl_studio_mcp.tools import channel as channel_domain_tools  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # Minimal fake bridge
 # ---------------------------------------------------------------------------
@@ -56,9 +55,7 @@ class FakeBridge:
         self.calls.append((command, params))
 
         if command == protocol.CMD_CHANNEL_LIST:
-            channels = [
-                {"i": i, "name": c["name"]} for i, c in self.channels.items()
-            ]
+            channels = [{"i": i, "name": c["name"]} for i, c in self.channels.items()]
             return {"total": len(channels), "channels": channels, "next_start": None}
 
         if command == protocol.CMD_CHANNEL_GET:

@@ -1,0 +1,42 @@
+{
+  "date": "2026-06-06",
+  "agent_author": "Codex",
+  "topic": "Product workflow tools attach source-qualified Knowledgebase policy metadata",
+  "affected_file_api": [
+    "src/fl_studio_mcp/kb_policy.py",
+    "src/fl_studio_mcp/music/mix_doctor.py",
+    "src/fl_studio_mcp/tools/mix_doctor.py",
+    "src/fl_studio_mcp/tools/project_doctor.py",
+    "src/fl_studio_mcp/tools/routing.py",
+    "src/fl_studio_mcp/tools/project_organizer.py",
+    "src/fl_studio_mcp/tools/chains.py"
+  ],
+  "context": "Updated mixing, mastering, production, and performance Knowledgebase entries should improve existing tools without creating unsafe new FL Studio write paths.",
+  "observation": "Product tools benefit from KB rules as policy metadata and conservative diagnosis wording. KB entries must not be interpreted as executable operations.",
+  "tested_values": [
+    "Mix Review synthetic clipping/headroom snapshot",
+    "Mix Review missing high-pass snapshot",
+    "Mix Review gain-stage snapshot",
+    "Mix Review user-facing compact KB output shape",
+    "KB policy lookup for master_peak_boundary",
+    "KB policy lookup for mix_doctor_insert_headroom_context",
+    "KB policy lookup for mix_doctor_existing_plugin_only"
+  ],
+  "result": "A read-only kb_policy helper loads whitelisted JSON policy files. Mix Review user-facing findings/proposals include compact kb_rule_ids, kb_confidence_levels, and safety_limits, while full source-qualified rule details stay centralized in top-level kb_policy_refs. Project Health, Routing Review, Project Organizer, and Chain Planner return KB policy refs where relevant. Project Organizer color writes now use operation-registry-prepared RGB payloads instead of raw hex strings.",
+  "confidence_level": "implementation_verified",
+  "source_method": "Static implementation review, live macOS smoke test, and focused offline tests",
+  "valid_ranges": "No new FL parameter ranges are introduced. Mixer/channel color payloads use existing operation-registry validation for r/g/b 0..255 or restore color.int.",
+  "example": "An insert track above 0 dBFS is reported as headroom/stem risk with mix_doctor_insert_headroom_context; Master peaks at or above 0 dBFS use mix_doctor_master_output_boundary.",
+  "known_pitfalls": [
+    "Do not load arbitrary KB JSON as commands.",
+    "Do not repeat full KB rule details on every Mix Review finding/proposal; keep per-row metadata compact and source details centralized.",
+    "Do not assume KB policy confidence is equivalent to live API verification.",
+    "Keep plugin loading, render/export, and FL Cloud Mastering manual."
+  ],
+  "reproduction_steps": [
+    ".venv/bin/python tests/test_kb_policy.py",
+    ".venv/bin/python tests/test_mix_doctor.py"
+  ],
+  "open_questions": "None for the compact KB metadata output shape; future feature slices still need their own live or offline verification.",
+  "next_recommended_action": "Completed by knowledgebase/mcp/low_end_stereo_safety_assistant.*; next step is live readback parity for controller build channels-v39."
+}

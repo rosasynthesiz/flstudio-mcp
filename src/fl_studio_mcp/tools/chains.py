@@ -14,7 +14,7 @@ from typing import Annotated
 from fastmcp import FastMCP
 from pydantic import Field
 
-from .. import protocol
+from .. import kb_policy, protocol
 from ..connection import get_bridge
 from ..music import chains as ch
 from ..music import plugin_library as pl
@@ -81,10 +81,10 @@ def register(mcp: FastMCP) -> None:
         Safety: Read-Only.
         """
         try:
-            pl = get_bridge().call(protocol.CMD_PLUGIN_LIST, {"track": track}) or {}
+            plugin_listing = get_bridge().call(protocol.CMD_PLUGIN_LIST, {"track": track}) or {}
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-        plugins = pl.get("slots", [])
+        plugins = plugin_listing.get("slots", [])
         plan = ch.plan_chain(chain_type, plugins)
         if not plan.get("ok"):
             return plan
@@ -101,6 +101,9 @@ def register(mcp: FastMCP) -> None:
         ]
         lib = pl.list_installed()  # what the user OWNS (disk DB)
         owned = pl.effects_by_role(lib["effects"]) if lib.get("found") else {}
+        kb_refs = ["mix_doctor_existing_plugin_only"]
+        if plan["chain_type"] == "master":
+            kb_refs += ["mastering_after_mix_readiness", "maximus_loaded_plugin_only"]
         return {
             "ok": True,
             "track": track,
@@ -110,6 +113,7 @@ def register(mcp: FastMCP) -> None:
             "missing_roles": plan["missing"],
             "library_found": bool(lib.get("found")),
             "installed_effects_by_role": owned,
+            "kb_policy_refs": kb_policy.rule_refs(kb_refs),
             "guidance": (
                 "1) CONFIGURE: after the user oks, apply each 'configure_now' step's "
                 "apply(tool,args) on the plugins ALREADY loaded. 2) SUGGEST ADDS: for each "
@@ -117,6 +121,7 @@ def register(mcp: FastMCP) -> None:
                 "installed_effects_by_role (pick the best fit -- apply your own plugin "
                 "knowledge, the buckets are rough) and tell them to ADD it to the track "
                 "(FL can't load plugins via the API). They re-run to configure it once added. "
-                "Nothing applied here."
+                "Nothing applied here. For master-chain plans, run mix readiness checks first "
+                "and keep rendering/export/manual mastering outside MCP automation."
             ),
         }

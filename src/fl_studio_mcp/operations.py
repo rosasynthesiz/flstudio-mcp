@@ -112,9 +112,9 @@ class OperationSpec:
     validator: Callable[[Mapping[str, Any]], dict[str, Any]]
     command_builder: Callable[[Mapping[str, Any]], OperationCommand]
     snapshot_scope_builder: Callable[[Mapping[str, Any]], str] | None = None
-    restore_builder: (
-        Callable[[Mapping[str, Any], Mapping[str, Any]], OperationCommand] | None
-    ) = None
+    restore_builder: Callable[[Mapping[str, Any], Mapping[str, Any]], OperationCommand] | None = (
+        None
+    )
     readback_scope_builder: Callable[[Mapping[str, Any]], str] | None = None
     verify_builder: Callable[[Mapping[str, Any]], tuple[str, Any] | None] | None = None
     batch_eligible: bool = False
@@ -161,9 +161,7 @@ class OperationRegistry:
         except KeyError as exc:
             raise OperationValidationError(f"unknown operation: {domain}.{action}") from exc
 
-    def prepare(
-        self, domain: str, action: str, params: Mapping[str, Any]
-    ) -> PreparedOperation:
+    def prepare(self, domain: str, action: str, params: Mapping[str, Any]) -> PreparedOperation:
         return self.get(domain, action).prepare(params)
 
     def list_specs(self) -> list[OperationSpec]:
@@ -707,9 +705,7 @@ def _restore_mixer_name(params: Mapping[str, Any], before: Mapping[str, Any]) ->
 def _restore_mixer_bool(
     command: str, field: str
 ) -> Callable[[Mapping[str, Any], Mapping[str, Any]], OperationCommand]:
-    return lambda params, before: _cmd(
-        command, {"track": params["track"], "state": before[field]}
-    )
+    return lambda params, before: _cmd(command, {"track": params["track"], "state": before[field]})
 
 
 def _before_color_int(before: Mapping[str, Any]) -> int:
@@ -880,9 +876,7 @@ def _restore_pattern_length(
 def _restore_playlist_track_bool(
     command: str, field: str
 ) -> Callable[[Mapping[str, Any], Mapping[str, Any]], OperationCommand]:
-    return lambda params, before: _cmd(
-        command, {"index": params["index"], "state": before[field]}
-    )
+    return lambda params, before: _cmd(command, {"index": params["index"], "state": before[field]})
 
 
 def _restore_playlist_track_name(
@@ -956,9 +950,7 @@ def _restore_eq_band(params: Mapping[str, Any], before: Mapping[str, Any]) -> Op
     )
 
 
-def _restore_plugin_param(
-    params: Mapping[str, Any], before: Mapping[str, Any]
-) -> OperationCommand:
+def _restore_plugin_param(params: Mapping[str, Any], before: Mapping[str, Any]) -> OperationCommand:
     return _cmd(
         protocol.CMD_PLUGIN_SET_PARAM,
         {
@@ -1312,7 +1304,9 @@ _DEFAULT_SPECS = (
         validator=_validate_playlist_track_select,
         command=protocol.CMD_PLAYLIST_SELECT_TRACK,
         snapshot_scope_builder=_playlist_track_scope,
-        restore_builder=_restore_playlist_track_bool(protocol.CMD_PLAYLIST_SELECT_TRACK, "selected"),
+        restore_builder=_restore_playlist_track_bool(
+            protocol.CMD_PLAYLIST_SELECT_TRACK, "selected"
+        ),
         verify_builder=lambda params: ("selected", params["state"]),
     ),
     _persistent_write_spec(
@@ -1508,9 +1502,7 @@ def get_operation(domain: str, action: str) -> OperationSpec:
     return OPERATION_REGISTRY.get(domain, action)
 
 
-def prepare_operation(
-    domain: str, action: str, params: Mapping[str, Any]
-) -> PreparedOperation:
+def prepare_operation(domain: str, action: str, params: Mapping[str, Any]) -> PreparedOperation:
     return OPERATION_REGISTRY.prepare(domain, action, params)
 
 

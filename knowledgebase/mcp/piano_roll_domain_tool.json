@@ -9,7 +9,7 @@
     "CMD_GENERAL_UNDO",
     "generated Piano Roll .pyscript helpers"
   ],
-  "context": "v1.2 slice 10 adds an additive Piano Roll domain tool beside legacy Piano Roll tools for parity testing and lower tool-selection overhead.",
+  "context": "v1.2 slice 10 introduced the Piano Roll domain tool additively for parity testing and lower tool-selection overhead. In the current v2.0 public surface, legacy Piano Roll aliases covered by fl_piano_roll are retired.",
   "observation": "fl_piano_roll consolidates existing undo-backed note writes, chord writes, clear, quantize, transpose, duplicate, velocity ramp, marker helpers, and explicit readback-limit reports. Generated-script writes route through safety.safe_piano_roll_write, which logs FL Studio undo as the restore action.",
   "tested_values": [
     "write_notes",
@@ -48,5 +48,5 @@
     "Live FL Studio smoke tests were not run in this slice.",
     "A stable return channel for Piano Roll note/marker readback remains future research."
   ],
-  "next_recommended_action": "Implement slice 11, read-only fl_batch, while explicitly rejecting writes, raw protocol calls, script text, and Piano Roll generated-script actions."
+  "next_recommended_action": "Keep fl_piano_roll aligned with the undo-backed safety path and public registration baseline."
 }

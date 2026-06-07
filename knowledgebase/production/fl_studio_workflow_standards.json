@@ -1,0 +1,85 @@
+{
+  "date": "2026-06-06",
+  "agent_author": "Codex",
+  "topic": "FL Studio workflow standards for assistant planning",
+  "confidence_level": "docs_confirmed",
+  "source_method": [
+    "https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/basics_workflow.htm",
+    "scratch/extractions/4ICwZjBvgpo_raw.txt"
+  ],
+  "rules": [
+    {
+      "id": "preserve_existing_structure_first",
+      "domain": "project_organization",
+      "recommendation": "Read current channels, playlist tracks, mixer tracks, patterns, and routing before proposing cleanup.",
+      "rationale": "FL Studio supports multiple valid workflows and does not enforce one-to-one Playlist/Mixer/Channel mapping.",
+      "tool_implications": [
+        "fl_project_health_report",
+        "fl_analyze_project_organization",
+        "fl_review_routing",
+        "fl_batch"
+      ],
+      "safety_limits": [
+        "No playlist clip editing.",
+        "No pattern or clip deletion.",
+        "No plugin loading or insertion."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "instrument_audio_track_workflow",
+      "domain": "project_organization",
+      "recommendation": "When names/colors already indicate linked Instrument or Audio Tracks, keep Channel, Playlist Track, and Mixer Track naming/coloring consistent where safe wrappers exist.",
+      "rationale": "The documented linear workflow creates linked naming, coloring, channel, playlist, mixer, and pattern context.",
+      "tool_implications": [
+        "fl_apply_project_cleanup_step",
+        "fl_apply_naming_standard",
+        "fl_apply_color_standard"
+      ],
+      "safety_limits": [
+        "Only update surfaces exposed by rollback-safe tools.",
+        "Do not infer a link from numeric index alone."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "channel_rack_workflow_requires_routing_inference",
+      "domain": "routing",
+      "recommendation": "For Channel Rack workflow projects, infer mixer relationships from channel target mixer tracks and names rather than playlist track positions.",
+      "rationale": "The manual states Playlist Clip Tracks are universal lanes and Channel Rack to Mixer routing decides processing.",
+      "tool_implications": [
+        "fl_channel",
+        "fl_mixer",
+        "fl_get_channel_routing"
+      ],
+      "safety_limits": [
+        "Do not assume Playlist Track N maps to Mixer Track N.",
+        "Read back every applied routing change."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "routing_ui_guidance_vs_mcp_write",
+      "domain": "routing",
+      "recommendation": "Treat drag-and-drop routing, plugin loading, effect insertion, external inputs, and hardware outputs as manual guidance unless a safe MCP wrapper exists.",
+      "rationale": "The routing video demonstrates UI workflows; the project safety contract requires snapshot, write, readback, changelog, and rollback for persistent MCP writes.",
+      "tool_implications": [
+        "fl_group_tracks",
+        "fl_apply_bus_layout",
+        "fl_apply_routing_cleanup"
+      ],
+      "safety_limits": [
+        "Plugin loading/insertion remains manual.",
+        "External hardware routing should be reported as manual guidance."
+      ],
+      "confidence_level": "docs_confirmed"
+    }
+  ],
+  "affected_api": "N/A",
+  "observation": "N/A",
+  "tested_values": "N/A",
+  "context": "N/A",
+  "result": "N/A",
+  "open_questions": "N/A",
+  "next_recommended_action": "N/A"
+}

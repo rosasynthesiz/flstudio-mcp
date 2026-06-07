@@ -1,0 +1,17 @@
+{
+  "topic": "FL Studio Channel and Pattern Index Synchronization",
+  "date": "2026-06-06",
+  "author": "Antigravity",
+  "confidence_level": "implementation_verified",
+  "context": "When matching channels and patterns for batch configuration operations, using fixed channel indices from routing states led to misaligned patterns when FL Studio's dynamic rack indices shifted.",
+  "observation": "channel_list returns a dynamically shifting 'i' index. Split by channel creates patterns directly tied to this dynamic channel index (pattern_index = channel_index + 1). Hardcoding names to indices without matching the names in the current list pass causes off-by-one errors.",
+  "result": "Unintentionally renamed patterns or completely missed pattern updates.",
+  "recommended_action": "Always verify 'c[\"name\"]' directly to identify the target element before issuing a rename or color command. Derive 'pat_idx = c[\"i\"] + 1' dynamically from the channel_list match.",
+  "open_questions": [
+    "Is there an internal, immutable UUID-like identifier for Channels or Patterns across the bridge?"
+  ],
+  "affected_api": "CMD_CHANNEL_ROUTING_SUMMARY, channel_list, pattern_list",
+  "source_method": "N/A",
+  "tested_values": "N/A",
+  "next_recommended_action": "N/A"
+}

@@ -10,7 +10,8 @@ This file is the active execution roadmap for the branch.
 4. Creative intelligence and experimental infrastructure
 
 ## Current Stable Capabilities
-- Mix Doctor
+- Mix Review
+- Low-End/Stereo Safety Assistant
 - Knowledgebase & Safe Wrappers
 - Full-song peak watch
 - Plugin parameter control
@@ -24,12 +25,12 @@ This file is the active execution roadmap for the branch.
 - Project Organizer MVP
 - Naming Standard Assistant
 - Color Standardizer
-- Routing Doctor 2.0
+- Routing Review 2.0
 - Audio Clip Inspector
 - Audio Clip Safe Defaults Assistant
-- Project Health Dashboard MVP
-- Preflight Project MVP
-- Guided Fix Mode
+- Project Health Overview MVP
+- Project Preflight MVP
+- Guided Cleanup Mode
 - Change Log / Rollback UX improvements
 
 ## Verified FL Studio API Capabilities
@@ -55,15 +56,15 @@ This file is the active execution roadmap for the branch.
 - [x] Project Organizer MVP
 - [x] Naming Standard Assistant
 - [x] Color Standardizer
-- [x] Routing Doctor 2.0
+- [x] Routing Review 2.0
 - [x] Audio Clip Inspector
 - [x] Audio Clip Safe Defaults Assistant
-- [x] Project Health Dashboard MVP
-- [x] Preflight Project MVP
-- [x] Guided Fix Mode
+- [x] Project Health Overview MVP
+- [x] Project Preflight MVP
+- [x] Guided Cleanup Mode
 - [x] Change Log / Rollback UX improvements
 
-Verified live against FL Studio via TCP bridge on macOS, including guided-fix workflow and EQ parameter application.
+Verified live against FL Studio via TCP bridge on macOS, including guided cleanup workflow and EQ parameter application.
 
 ## Active Roadmap
 
@@ -81,8 +82,8 @@ Verified live against FL Studio via TCP bridge on macOS, including guided-fix wo
 - Consolidate redundant getter/setter tools into a compact low-level/domain
   surface; the target is roughly 19 low-level/domain tools plus retained
   product workflow tools.
-- Keep high-value workflow tools such as Mix Doctor, Project Doctor, Routing
-  Doctor, Project Organizer, audio analysis, MIDI export, resources, and
+- Keep high-value workflow tools such as Mix Review, Project Health, Routing
+  Review, Project Organizer, audio analysis, MIDI export, resources, and
   Knowledgebase tools unless a later roadmap item explicitly removes them.
 - Add an internal operation registry and validation layer before exposing new
   consolidated write paths.
@@ -118,9 +119,8 @@ Verified live against FL Studio via TCP bridge on macOS, including guided-fix wo
 - Plugin Chain Assistant 2.0
 - Arrangement Coach
 - Energy Curve Analyzer
-- Transition Doctor
-- Low-End Safety Assistant
-- Sidechain Doctor
+- Transition Review
+- Sidechain Assistant
 - Creative Block Breaker
 - Explain My Mix
 - Reference Track Deconstruction
@@ -132,7 +132,7 @@ Verified live against FL Studio via TCP bridge on macOS, including guided-fix wo
 - Automation Pack Generator
 - A/B Variant Manager
 - Plugin Replacement Assistant
-- CPU / Performance Doctor
+- CPU / Performance Review
 - Compare Project Against Reference Structure
 - Deep Sample & Loop Intelligence
 - Optional TCP/push-event transport research
@@ -150,11 +150,11 @@ compact domain-driven surface. The target is roughly 19 low-level/domain tools
 plus retained product workflow tools, not a total cap for the whole MCP server.
 
 Current baseline:
-- 2026-06-05 registration baseline after legacy low-level alias removal:
-  86 registered public FastMCP tools with 86 unique public names.
-- Static audit baseline: 165 audited tool definitions, including 86 legacy
+- 2026-06-07 registration baseline after legacy low-level alias removal:
+  87 registered public FastMCP tools with 87 unique public names.
+- Static audit baseline: 166 audited tool definitions, including 86 legacy
   low-level aliases intentionally absent from public registration.
-- Registered safety-class summary: 33 `write-safe`, 40 `read-only`, 4
+- Registered safety-class summary: 33 `write-safe`, 41 `read-only`, 4
   `server-state`, 2 `external-write`, and 7 Knowledgebase tools registered
   outside the static AST audit pattern.
 - The duplicate `project_doctor_tools.register(mcp)` call was removed as
@@ -223,7 +223,7 @@ Current baseline:
   reverse rollback, covering bridge failures that mutate FL state before
   raising. Focused review checks remain green with 0 write gaps.
 - Phase 5 product workflow internal refactor is complete as of 2026-06-05.
-  Routing Doctor bus/route grouped writes and Mix Doctor trim-volume writes now
+  Routing Review bus/route grouped writes and Mix Review trim-volume writes now
   prepare through the operation registry before dispatching through the
   existing safety layer. Project Organizer channel rename and hex color paths
   were intentionally left unchanged because their public input shapes do not
@@ -234,13 +234,67 @@ Current baseline:
   resources, Knowledgebase tools, plugin preset guidance, and specialized
   workflow tools remain registered. Direct Internal EQ wrapper registration was
   removed in favor of `fl_effect`'s rollback-backed native EQ path.
+- Product workflow Knowledgebase policy pass is complete as of 2026-06-06.
+  Mix Review findings/proposals now carry source-qualified KB policy metadata
+  and distinguish Master/output clipping from insert-track headroom risk.
+  Project Health, Routing Review, Project Organizer, and Chain Planner expose
+  relevant KB policy references without adding new FL write capabilities.
+  Project Organizer color writes now prepare through operation-registry RGB
+  validation instead of raw hex payloads.
 - Product workflows remain in scope unless explicitly removed by a later
   roadmap item.
+- Live macOS Smoke Test is complete as of 2026-06-06. Confirmed connection,
+  heartbeat, ping (build marker `channels-v38`), and correct runtime behavior
+  of all read-only Sweep tools. Verified rollback-safe mixer track color
+  modification on Track 20 ("Toploop") from `#ABA362` to `#FF0080` and back
+  to original.
+- Focused product workflow regression coverage is complete as of 2026-06-06.
+  Offline tests now lock the live-verified KB policy contracts for Project
+  Health preflight/watch peaks, Routing Review index-preservation rules,
+  Project Organizer registry-backed RGB color writes and invalid-color
+  fail-fast behavior, and Chain Planner loaded-plugin/mastering boundaries.
+  This adds no new FL Studio API claims or write paths.
+- Mix Review output polish is complete as of 2026-06-06. User-facing findings
+  and proposals now keep compact per-row KB metadata (`kb_rule_ids`,
+  `kb_confidence_levels`, and `safety_limits`) while full source-qualified rule
+  details remain centralized in top-level `kb_policy_refs`. This reduces token
+  noise without changing diagnosis, planning, write paths, or safety behavior.
+- Product workflow naming pass is complete as of 2026-06-06 as an intentional
+  API-breaking cleanup. Public product workflow tool names now use Mix Review,
+  Routing Review/Cleanup, Project Health/Preflight, and Guided Cleanup naming
+  without compatibility aliases. Safety behavior and rollback-backed write
+  paths are unchanged.
+- Product workflow naming live smoke is complete as of 2026-06-07 on macOS.
+  The current public names executed successfully against FL Studio Producer
+  Edition v25.2.5 [build 5055] with controller marker `channels-v38`, and
+  `fl_apply_mix_adjustment` passed a rollback-safe Track 20 fader write/readback
+  test with exact restoration.
+- Low-End/Stereo Safety Assistant is complete as of 2026-06-07. The new
+  read-only `fl_review_low_end_stereo` tool reports bass/sub
+  mono-compatibility risks, mixer pan and stereo-separation metadata, low-end
+  layering, and Master headroom with compact KB policy references. Controller
+  build marker `channels-v39` adds `stereo_sep` to `mixer_list_tracks` for
+  efficient readback. Live FL verification is complete as of 2026-06-06, successfully reviewing stereo separation and low-end metadata across a loaded project.
+
+- Data-driven standard template recognition is complete as of 2026-06-07. The
+  template classifier now loads compact Knowledgebase profiles, scores live
+  mixer/routing/channel readbacks against profile topology, annotates runtime
+  roles and tool-policy suppression flags, and feeds Mix Review,
+  Low-End/Stereo Review, Routing Review/Cleanup, Project Health/Preflight, and
+  Project Organizer through the same template context. All fl studio advanced
+  template names are represented; structurally identical pairs are reported as
+  ambiguous candidate lists instead of false exact matches. This remains
+  read-only and adds no FL write capability.
+- Agent orientation resource is complete as of 2026-06-07. `fl://agent-briefing`
+  provides a compact, read-only startup entrypoint with bridge/status summary,
+  current domain/workflow tool guidance, Knowledgebase-first behavior, safety
+  gates, and stop rules. It adds no FL write capability and is safe when the
+  bridge is down.
 
 Proposed scope:
 - **Phase 0**: Inventory and registration baseline. Status: completed
   2026-06-04
-  with `scripts/check_tool_registration_baseline.py`; duplicate Project Doctor
+  with `scripts/check_tool_registration_baseline.py`; duplicate Project Health
   registration does not affect the public tool count or tool-name set.
 - **Phase 1**: Operation registry and validation layer sourced from existing
   safe primitives and Knowledgebase data where available. Status: skeleton
@@ -261,7 +315,7 @@ Proposed scope:
 - **Phase 5**: Refactor product workflows internally only where the operation
   registry reduces meaningful duplication without weakening safety. Status:
   completed 2026-06-05 for routing route writes, mixer bus renames, and Mix
-  Doctor trim-volume writes.
+  Review trim-volume writes.
 - **Phase 6**: Remove legacy low-level tools without deprecation wrappers after
   parity tests, docs, Knowledgebase updates, registration checks, and safety
   audit pass. Status: completed 2026-06-05.

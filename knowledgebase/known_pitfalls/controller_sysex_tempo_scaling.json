@@ -1,0 +1,19 @@
+{
+  "date": "2026-05-23",
+  "agent_author": "System Migration",
+  "topic": "SysEx routing and tempo scaling bugs in the FL controller script",
+  "affected_file_api": "fl_controller/FLStudioMCP/device_FLStudioMCP.py, midi, general.processRECEvent",
+  "context": "Bridge failures showed heartbeat timeouts and tempo writes collapsed to extremely low BPM values.",
+  "observation": "Modern FL builds can deliver incoming SysEx through OnSysEx(event), and midi.REC_FromMIDI makes tempo writes interpret raw BPM values as normalized MIDI fractions.",
+  "tested_values": "End-to-end bridge checks for ping, get tempo, set tempo, play, get play state, and stop.",
+  "result": "The controller supports both OnMidiMsg and OnSysEx. Tempo uses midi.REC_UpdateValue | midi.REC_UpdateControl without REC_FromMIDI.",
+  "confidence_level": "implementation_verified",
+  "source_method": "FIX_REPORT.md post-mortem and controller implementation review",
+  "reproduction_steps": "Configure duplicate RX/TX MIDI output directions or write tempo with REC_FromMIDI; heartbeat or tempo readback fails.",
+  "known_pitfalls": [
+    "RX should be FL input only and TX should be FL output only.",
+    "Stale controller deployments can keep old behavior active."
+  ],
+  "open_questions": "None.",
+  "next_recommended_action": "Keep this entry separate from Mix Review recipes so policy loaders do not ingest controller transport findings as mix guidance."
+}

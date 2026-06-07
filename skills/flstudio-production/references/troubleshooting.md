@@ -2,7 +2,7 @@
 
 ## Bridge Preflight
 
-- Start with `fl_ping`.
+- Start with `fl_transport(action="ping")`.
 - If the TCP daemon is needed for a live script, start it before running live
   tests and stop it afterward.
 - Confirm FL Studio, the virtual MIDI ports, and the controller build marker.
@@ -14,7 +14,7 @@
 - Timeout: controller is loaded but not responding; reload MIDI scripts or
   reselect the FLStudioMCP controller.
 - Unknown command: FL is running an older controller script; install/reload the
-  current script and confirm `fl_ping` build marker.
+  current script and confirm the `fl_transport(action="ping")` build marker.
 - Piano Roll write reports triggered but notes do not appear: `MCP Apply` was
   probably not armed from the Piano Roll Scripting menu.
 - Plugin write preflight fails: the expected plugin is not loaded on that

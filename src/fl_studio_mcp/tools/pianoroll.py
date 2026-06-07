@@ -212,7 +212,9 @@ def _run_piano_roll_action(action: str, params: dict | None) -> dict:
             raise ValueError(f"unknown chord type: {chord_name!r}")
         time_bars = _optional_float(resolved, "time_bars", default=0.0, minimum=0.0)
         length_bars = _optional_float(resolved, "length_bars", default=1.0, minimum=0.0)
-        velocity = _optional_float(resolved, "velocity", default=100 / 127.0, minimum=0.0, maximum=1.0)
+        velocity = _optional_float(
+            resolved, "velocity", default=100 / 127.0, minimum=0.0, maximum=1.0
+        )
         assert time_bars is not None and length_bars is not None and velocity is not None
         if length_bars <= 0:
             raise ValueError("length_bars must be > 0")

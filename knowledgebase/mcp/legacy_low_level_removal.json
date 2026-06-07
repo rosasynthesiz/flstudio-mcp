@@ -1,5 +1,5 @@
 {
-  "date": "2026-06-05",
+  "date": "2026-06-07",
   "agent_author": "Codex",
   "topic": "v1.2 legacy low-level MCP alias removal",
   "affected_file_api": [
@@ -8,13 +8,13 @@
     "domain MCP tools"
   ],
   "context": "v1.2 Phase 6 removed redundant one-off low-level aliases after domain tools and fl_batch were added and parity-tested.",
-  "observation": "The public FastMCP surface now registers 86 tools with 86 unique public names. Redundant aliases covered by domain tools and fl_batch are removed without deprecation wrappers.",
+  "observation": "The public FastMCP surface now registers 87 tools with 87 unique public names. Redundant aliases covered by domain tools and fl_batch are removed without deprecation wrappers.",
   "tested_values": {
-    "registered_public_tools": 86,
-    "unique_public_tool_names": 86,
+    "registered_public_tools": 87,
+    "unique_public_tool_names": 87,
     "registered_safety_classes": {
       "write-safe": 33,
-      "read-only": 40,
+      "read-only": 41,
       "server-state": 4,
       "external-write": 2,
       "unannotated": 7

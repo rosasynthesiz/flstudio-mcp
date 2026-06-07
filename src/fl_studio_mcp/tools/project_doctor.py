@@ -7,8 +7,10 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
-from .. import protocol
+from .. import kb_policy, protocol
+from .. import project_templates as templates
 from ..connection import fetch_all_pages, get_bridge
+from ..music import mix_doctor as md
 
 
 def _find_duplicate_names(rows: list[dict], key: str) -> list[str]:
@@ -52,6 +54,15 @@ def register(mcp: FastMCP) -> None:
         )
         mixer_tracks = fetch_all_pages(bridge, protocol.CMD_MIXER_LIST_TRACKS, "tracks").get(
             "tracks", []
+        )
+        routing = fetch_all_pages(bridge, protocol.CMD_MIXER_GET_ROUTING_ALL, "routing").get(
+            "routing", []
+        )
+        channel_routing = fetch_all_pages(
+            bridge, protocol.CMD_CHANNEL_ROUTING_SUMMARY, "channels"
+        ).get("channels", [])
+        template_context = templates.classify_topology(
+            mixer_tracks, routing, channel_routing
         )
 
         unassigned_channels = []
@@ -126,6 +137,7 @@ def register(mcp: FastMCP) -> None:
                 "mixer_tracks": len(mixer_tracks),
                 "findings": len(findings),
             },
+            "template_context": templates.compact_context(template_context),
             "findings": findings,
             "details": {
                 "unassigned_channels": unassigned_channels,
@@ -146,6 +158,7 @@ def register(mcp: FastMCP) -> None:
             "ready": len(blockers) == 0,
             "blockers": blockers,
             "advisories": [f for f in findings if f.get("severity") in ("low", "info")],
+            "kb_policy_refs": kb_policy.rule_refs(["mastering_after_mix_readiness"]),
             "source": report,
         }
 
@@ -270,128 +283,192 @@ def register(mcp: FastMCP) -> None:
             ],
         }
 
-    @mcp.tool(annotations={"title": "Project Health Dashboard", **_RO})
-    def fl_project_health_dashboard() -> dict:
-        """Aggregates Project Organizer, Routing Doctor, and Mix Doctor insights into a single dashboard.
-        
+    @mcp.tool(annotations={"title": "Project health overview", **_RO})
+    def fl_project_health_overview() -> dict:
+        """Aggregates Project Organizer, Routing Review, and Mix Review insights into a single overview.
+
         Safety: Read-Only.
         """
         bridge = get_bridge()
-        
+
         # 1. Routing Summary
-        chans = fetch_all_pages(bridge, protocol.CMD_CHANNEL_ROUTING_SUMMARY, "channels").get("channels", [])
-        unrouted = sum(1 for c in chans if not isinstance(c.get("target_mixer_track"), int) or c.get("target_mixer_track") == 0)
-        
+        chans = fetch_all_pages(bridge, protocol.CMD_CHANNEL_ROUTING_SUMMARY, "channels").get(
+            "channels", []
+        )
+        unrouted = sum(
+            1
+            for c in chans
+            if not isinstance(c.get("target_mixer_track"), int) or c.get("target_mixer_track") == 0
+        )
+
         # 2. General Health
-        patterns = fetch_all_pages(bridge, protocol.CMD_PATTERN_LIST, "patterns").get("patterns", [])
-        mixer_tracks = fetch_all_pages(bridge, protocol.CMD_MIXER_LIST_TRACKS, "tracks").get("tracks", [])
-        
+        patterns = fetch_all_pages(bridge, protocol.CMD_PATTERN_LIST, "patterns").get(
+            "patterns", []
+        )
+        mixer_tracks = fetch_all_pages(bridge, protocol.CMD_MIXER_LIST_TRACKS, "tracks").get(
+            "tracks", []
+        )
+        routing = fetch_all_pages(bridge, protocol.CMD_MIXER_GET_ROUTING_ALL, "routing").get(
+            "routing", []
+        )
+        template_context = templates.classify_topology(mixer_tracks, routing, chans)
+
         return {
-            "status": "Dashboard Generated",
+            "status": "Overview Generated",
             "metrics": {
                 "total_channels": len(chans),
                 "unrouted_channels": unrouted,
                 "total_patterns": len(patterns),
                 "total_mixer_tracks": len(mixer_tracks),
             },
+            "template_context": templates.compact_context(template_context),
             "recommendations": [
                 "Run fl_analyze_project_organization to find unnamed/uncolored channels.",
-                "Run fl_analyze_routing to find structural routing issues.",
+                "Run fl_review_routing to find structural routing issues.",
                 "Run fl_inspect_audio_clips to find loud audio clips.",
-                "Run fl_scan_mix (Mix Doctor) to find clipping and EQ masking."
-            ]
+                "Run fl_review_mix or Mix Review watch mode to find clipping and EQ masking.",
+            ],
+            "kb_policy_refs": kb_policy.rule_refs(
+                [
+                    "preserve_existing_structure_first",
+                    "mastering_after_mix_readiness",
+                ]
+            ),
         }
 
-    @mcp.tool(annotations={"title": "Preflight Project MVP", **_RO})
-    def fl_preflight_project() -> dict:
+    @mcp.tool(annotations={"title": "Project preflight check", **_RO})
+    def fl_check_project_preflight() -> dict:
         """Export readiness preflight checks including clipping, unrouted channels, and Stretch mode checklists.
-        
+
         Safety: Read-Only.
         """
         bridge = get_bridge()
-        
+
         # Basic scan
-        chans = fetch_all_pages(bridge, protocol.CMD_CHANNEL_ROUTING_SUMMARY, "channels").get("channels", [])
-        unrouted = [c for c in chans if not isinstance(c.get("target_mixer_track"), int) or c.get("target_mixer_track") == 0]
-        
+        chans = fetch_all_pages(bridge, protocol.CMD_CHANNEL_ROUTING_SUMMARY, "channels").get(
+            "channels", []
+        )
+        routing = fetch_all_pages(bridge, protocol.CMD_MIXER_GET_ROUTING_ALL, "routing").get(
+            "routing", []
+        )
+        template_context = templates.classify_topology(routing, routing, chans)
+        unrouted = [
+            c
+            for c in chans
+            if not isinstance(c.get("target_mixer_track"), int) or c.get("target_mixer_track") == 0
+        ]
+
         audio_clips = [c for c in chans if c.get("type", {}).get("label") == "audioclip"]
-        loud_audio_clips = [c for c in audio_clips if c.get("vol", 0) > 0.8]
-        
+        loud_audio_clips = [c for c in audio_clips if c.get("vol_norm", c.get("vol", 0)) > 0.8]
+
+        wmax = md.get_watcher().last_max()
+        master_peak_db = None
+        if wmax and 0 in wmax:
+            master_peak_db = md.lin_to_db(wmax.get(0))
+
         blockers = []
         if unrouted:
             blockers.append(f"{len(unrouted)} channels are unrouted (go straight to Master).")
-            
+        if master_peak_db is not None and master_peak_db >= 0.0:
+            blockers.append(
+                f"Master peak from Mix Review watch is {master_peak_db:.1f} dBFS (output/render clipping risk)."
+            )
+
         advisories = []
         if loud_audio_clips:
             advisories.append(f"{len(loud_audio_clips)} audio clips are very loud (>80% vol).")
-            
+        if master_peak_db is not None and -1.0 < master_peak_db < 0.0:
+            advisories.append(
+                f"Master peak from Mix Review watch is {master_peak_db:.1f} dBFS; leave more headroom before mastering/export."
+            )
+
+        manual_checklist = [
+            "Run Mix Review watch mode through the loudest section if Master peak data is missing.",
+            "Check Audio Clip Stretch Mode manually; automatic Stretch Pro read/write is API-limited.",
+            "Check Audio Clip Normalize manually; automatic Normalize read/write is API-limited.",
+            "Keep FL Cloud Mastering, render, save, and export workflows manual in this MCP.",
+        ]
+
         return {
             "status": "Ready for Export" if not blockers else "Export Blockers Found",
             "blockers": blockers,
             "advisories": advisories,
-            "manual_checklist": [
-                "API LIMITATION: Check Master track for clipping (Peak meters).",
-                "API LIMITATION: Ensure all Audio Clips have 'Stretch Mode' set correctly (e.g. Stretch Pro).",
-                "API LIMITATION: Ensure all Audio Clips have 'Normalize' set correctly."
-            ]
+            "mix_readiness": {
+                "master_peak_db": round(master_peak_db, 1) if master_peak_db is not None else None,
+                "master_peak_source": "mix_review_watch" if master_peak_db is not None else None,
+            },
+            "template_context": templates.compact_context(template_context),
+            "manual_checklist": manual_checklist,
+            "kb_policy_refs": kb_policy.rule_refs(
+                [
+                    "master_peak_boundary",
+                    "mix_doctor_master_output_boundary",
+                    "mastering_after_mix_readiness",
+                    "fl_cloud_mastering_manual_only",
+                ]
+            ),
         }
 
-    @mcp.tool(annotations={"title": "Start Guided Fix Mode", **_RO})
-    def fl_start_guided_fix_mode() -> dict:
-        """Start an LLM-orchestrated Guided Fix Mode session.
-        
+    @mcp.tool(annotations={"title": "Start guided cleanup assistant", **_RO})
+    def fl_start_guided_cleanup() -> dict:
+        """Start an LLM-orchestrated Guided Cleanup session.
+
         This tool returns a stateless session blueprint. It analyzes the current project
         using several diagnostic tools and returns the fix policy, prioritization strategy,
         and user-facing prompt instructions. The LLM must then drive the conversation
         using this blueprint.
-        
+
         Safety: Read-Only (returns a policy and diagnostics, applies no fixes itself).
         """
-        health = fl_project_health_dashboard()
-        readiness = fl_preflight_project()
-        
+        health = fl_project_health_overview()
+        readiness = fl_check_project_preflight()
+
         return {
             "workflow_type": "LLM_ORCHESTRATED_WIZARD",
             "state_model": "STATELESS_MCP_AUTHORITATIVE",
             "assistant_instructions": [
-                "1. You are now driving Guided Fix Mode. You must NOT present all issues at once.",
+                "1. You are now driving Guided Cleanup Mode. You must NOT present all issues at once.",
                 "2. Treat MCP readbacks, diagnostics, and the changelog as the authoritative state, NOT your conversation history.",
                 "3. Follow the prioritization strategy below. Pick the highest priority issue category.",
                 "4. Explain the evidence for that specific issue to the user.",
-                "5. Propose exactly ONE fix using an available write-safe tool (e.g. fl_create_bus_layout, fl_apply_naming_standard, fl_apply_audio_clip_safe_defaults).",
+                "5. Propose exactly ONE fix using an available write-safe tool (e.g. fl_apply_bus_layout, fl_apply_naming_standard, fl_apply_audio_clip_safe_defaults).",
                 "6. Ask for the user's approval.",
                 "7. Apply the fix. Then immediately read back the affected state and show the before/after result.",
                 "8. Offer to rollback (via fl_rollback_last_change) or continue to the next issue.",
-                "9. If the user continues, re-check diagnostics (via fl_get_guided_fix_context) to find the next issue."
+                "9. If the user continues, re-check diagnostics (via fl_get_guided_cleanup_context) to find the next issue.",
             ],
             "prioritization_strategy": [
                 "Priority 1: Export Blockers (Unrouted channels to Master, Clipping)",
                 "Priority 2: Audio Clip Safe Defaults (Loud clips, Stretch mode warnings)",
                 "Priority 3: Routing Organization (Bus layouts, grouping)",
-                "Priority 4: Project Cleanup (Naming, coloring)"
+                "Priority 4: Project Cleanup (Naming, coloring)",
             ],
             "recommended_next_actions": [
-                "Read fl_get_guided_fix_context to get the detailed current state.",
-                "Present the highest priority finding to the user."
+                "Read fl_get_guided_cleanup_context to get the detailed current state.",
+                "Present the highest priority finding to the user.",
             ],
-            "initial_diagnostics": {
-                "health_dashboard": health,
-                "preflight_project": readiness
-            }
+            "initial_diagnostics": {"health_overview": health, "project_preflight": readiness},
+            "kb_policy_refs": kb_policy.rule_refs(
+                [
+                    "preserve_existing_structure_first",
+                    "mastering_after_mix_readiness",
+                    "source_or_bus_trim_before_master_trim",
+                ]
+            ),
         }
 
-    @mcp.tool(annotations={"title": "Get Guided Fix Context", **_RO})
-    def fl_get_guided_fix_context() -> dict:
-        """Reconstruct the current Guided Fix context from fresh diagnostics.
-        
-        Use this tool during Guided Fix Mode to get the latest, authoritative project state
+    @mcp.tool(annotations={"title": "Get guided cleanup context", **_RO})
+    def fl_get_guided_cleanup_context() -> dict:
+        """Reconstruct the current Guided Cleanup context from fresh diagnostics.
+
+        Use this tool during Guided Cleanup to get the latest, authoritative project state
         without relying on conversational history.
-        
+
         Safety: Read-Only.
         """
-        health = fl_project_health_dashboard()
-        readiness = fl_preflight_project()
-        
+        health = fl_project_health_overview()
+        readiness = fl_check_project_preflight()
+
         # We instruct the LLM to run the deeper analyzers for the active priority
         return {
             "context_type": "FRESH_DIAGNOSTICS",
@@ -399,13 +476,18 @@ def register(mcp: FastMCP) -> None:
             "current_preflight_status": readiness,
             "instruction_to_llm": "Based on the summary above, determine the highest remaining priority. If you need deep details to propose a fix, run the corresponding analyzer:",
             "analyzer_mapping": {
-                "Priority 1 (Routing Blockers)": "Run fl_analyze_routing",
+                "Priority 1 (Routing Blockers)": "Run fl_review_routing",
                 "Priority 2 (Audio Clips)": "Run fl_inspect_audio_clips",
-                "Priority 3 (Bus Layouts)": "Run fl_analyze_routing",
+                "Priority 3 (Bus Layouts)": "Run fl_review_routing",
                 "Priority 4 (Naming/Coloring)": "Run fl_analyze_project_organization",
-                "Priority 5 (Mix Headroom)": "Run fl_diagnose_mix"
+                "Priority 5 (Mix Headroom)": "Run fl_review_mix",
             },
-            "changelog_state_hint": "Run fl_get_change_log_summary to review recently applied fixes if needed."
+            "changelog_state_hint": "Run fl_get_change_log_summary to review recently applied fixes if needed.",
+            "kb_policy_refs": kb_policy.rule_refs(
+                [
+                    "preserve_existing_structure_first",
+                    "mastering_after_mix_readiness",
+                    "source_or_bus_trim_before_master_trim",
+                ]
+            ),
         }
-
-

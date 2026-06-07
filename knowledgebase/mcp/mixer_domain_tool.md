@@ -14,9 +14,11 @@
 
 ## Observation
 
-`fl_mixer(action, params)` is registered as a new additive `write-safe`
-MCP tool in the v1.2 shadow phase. It does not remove any legacy mixer
-tools. It dispatches through `operations.prepare_operation("mixer", ...)`,
+`fl_mixer(action, params)` is the public mixer domain entrypoint in the
+compact v2.0 tool surface. It was introduced additively during the v1.2
+shadow phase; legacy mixer aliases covered by this domain tool are now retired
+from public registration. It dispatches through
+`operations.prepare_operation("mixer", ...)`,
 which validates the action and parameters using the existing
 `OperationSpec` registry before any FL mutation occurs.
 
@@ -77,5 +79,5 @@ which validates the action and parameters using the existing
 
 ## Next Recommended Action
 
-- Implement `fl_channel` domain tool (Slice 07), following the same
-  registry-dispatch pattern.
+- Keep `fl_mixer` aligned with the operation registry and public registration
+  baseline.

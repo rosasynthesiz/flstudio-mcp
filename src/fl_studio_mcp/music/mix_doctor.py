@@ -1,4 +1,4 @@
-"""Mix Doctor: read a whole-mix snapshot and diagnose common problems.
+"""Mix Review: read a whole-mix snapshot and diagnose common problems.
 
 Two layers, kept separate on purpose:
 
@@ -19,6 +19,9 @@ from __future__ import annotations
 import math
 import re
 
+from .. import kb_policy
+from .. import project_templates as templates
+
 # --------------------------------------------------------------------------
 # Thresholds (transparent + tunable)
 # --------------------------------------------------------------------------
@@ -29,6 +32,11 @@ HOT_FRACTION = 0.4  # >= this share of audible tracks hot -> low headroom
 IMBALANCE_DB = 6.0  # peak this far above the median peak -> imbalance
 FADER_IMBALANCE_DB = 4.0  # fader this far above median fader (and above unity)
 EQ_BOOST_DB = 3.0  # an EQ band boost above this is "significant"
+LOW_END_PAN_RISK = 0.20  # main low-end this far off-center needs a mono check
+LOW_END_STEREO_SEP_RISK = 0.25  # positive FL mixer stereo sep values widen/separate
+LOW_END_LAYER_COUNT = 3  # this many active low-end tracks deserve masking review
+LOW_END_LAYER_FLOOR_DB = -18.0  # only count quiet layers as active with valid levels
+MASTER_HEADROOM_WARN_DB = -3.0  # above this, warn before mastering/export
 
 # Name heuristics
 LOW_END = ("kick", "sub", "bass", "808", "boom")  # HPF not expected here
@@ -73,8 +81,22 @@ def _octave_bucket(hz):
     return int(round(math.log2(hz / 31.25)))
 
 
-def finding(rule, severity, track, evidence, message, fix):
-    return {
+def _kb_fields(kb_rule_ids):
+    rule_ids = [str(r) for r in kb_rule_ids if r]
+    if not rule_ids:
+        return {}
+    out = {
+        "kb_rule_ids": rule_ids,
+        "kb_rules": kb_policy.rule_refs(rule_ids),
+    }
+    limits = kb_policy.safety_limits(rule_ids)
+    if limits:
+        out["safety_limits"] = limits
+    return out
+
+
+def finding(rule, severity, track, evidence, message, fix, kb_rule_ids=()):
+    out = {
         "rule": rule,
         "severity": severity,
         "track": track,
@@ -82,6 +104,8 @@ def finding(rule, severity, track, evidence, message, fix):
         "message": message,
         "proposed_fix": fix,
     }
+    out.update(_kb_fields(kb_rule_ids))
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -122,8 +146,8 @@ def gather_snapshot(
 
     Returns ``{"playing", "track_count", "peak_window", "tracks": [...],
     "gather_errors": [...]}``. Each track: index, name, vol_db, vol_norm, pan,
-    mute, solo, peak_max, peak_db, peak_avg_db, plugins[{slot,name,params?}],
-    routes_to.
+    stereo_sep, mute, solo, peak_max, peak_db, peak_avg_db,
+    plugins[{slot,name,params?}], routes_to.
     """
     from .. import protocol
     from ..connection import fetch_all_pages
@@ -156,6 +180,14 @@ def gather_snapshot(
         )
         or {}
     ).get("routing", [])
+    channel_routing_raw = (
+        _safe(
+            lambda: fetch_all_pages(bridge, protocol.CMD_CHANNEL_ROUTING_SUMMARY, "channels"),
+            "channel_routing_summary",
+            {"channels": []},
+        )
+        or {}
+    ).get("channels", [])
     route_by = {r.get("i", r.get("index")): (r.get("routes_to") or []) for r in routing_raw}
 
     indices = [t.get("i", t.get("index")) for t in tracks_raw[:max_tracks]]
@@ -218,6 +250,7 @@ def gather_snapshot(
                 "vol_db": t.get("vol_db"),
                 "vol_norm": t.get("vol_norm"),
                 "pan": t.get("pan"),
+                "stereo_sep": t.get("stereo_sep"),
                 "mute": bool(t.get("mute")),
                 "solo": bool(t.get("solo")),
                 "peak_max": peak_max,
@@ -228,6 +261,11 @@ def gather_snapshot(
                 "routes_to": route_by.get(i, []),
             }
         )
+    template_rows = routing_raw or tracks
+    template_context = templates.classify_topology(
+        template_rows, routing_raw, channel_routing_raw
+    )
+    tracks = templates.annotate_tracks(tracks, template_context)
     return {
         "playing": playing,
         "levels_valid": levels_valid,
@@ -238,6 +276,7 @@ def gather_snapshot(
             "source": peak_source,
         },
         "tracks": tracks,
+        "template_context": template_context,
         "gather_errors": errors,
     }
 
@@ -251,6 +290,10 @@ _DEFAULT_NAME = re.compile(r"^\s*(insert\s*\d+|master)\s*$", re.I)
 def _is_used(t):
     """Skip empty/unused mixer inserts (default 'Insert N' name, no plugins,
     only the implicit Master route, no signal) -- noise, not real tracks."""
+    if _template_policy_suppresses(t, "suppress_unused_track"):
+        return False
+    if t.get("template_role") == templates.ROLE_RESERVED_PLACEHOLDER:
+        return False
     if t.get("plugins"):
         return True
     nm = t.get("name") or ""
@@ -268,6 +311,33 @@ def _audible(tracks):
     return [t for t in tracks if t.get("index") != 0 and not t.get("mute") and _is_used(t)]
 
 
+def _template_context_from_tracks(tracks):
+    return templates.classify_topology(tracks)
+
+
+def _template_matched(tracks):
+    return bool(_template_context_from_tracks(tracks).get("matched"))
+
+
+def _has_level_evidence(t):
+    pk = t.get("peak_db")
+    return pk is not None and pk > -60.0
+
+
+def _is_template_judgement_excluded(t):
+    return t.get("template_role") in {
+        templates.ROLE_PREMASTER,
+        templates.ROLE_STEM_BUS,
+        templates.ROLE_SIDECHAIN_CONTROL,
+        templates.ROLE_RESERVED_PLACEHOLDER,
+    }
+
+
+def _template_policy_suppresses(t, key):
+    policy = t.get("template_tool_policy") or {}
+    return bool(policy.get(key))
+
+
 def rule_clipping(tracks):
     out = []
     for t in tracks:
@@ -275,22 +345,54 @@ def rule_clipping(tracks):
         if db is None:
             continue
         if db >= CLIP_HARD_DB:
+            if t.get("index") == 0:
+                out.append(
+                    finding(
+                        "clipping",
+                        "high",
+                        t["name"],
+                        f"Master peak {db:.1f} dBFS (>= 0)",
+                        (
+                            f"{t['name']} is at/above 0 dBFS ({db:.1f}). "
+                            "This is an output/render clipping risk."
+                        ),
+                        {
+                            "intent": "fl_set_mixer_volume",
+                            "args": {"track": t["index"]},
+                            "desc": "prefer source or bus trims; Master trim is an alternative",
+                        },
+                        (
+                            "master_peak_boundary",
+                            "mix_doctor_master_output_boundary",
+                            "mix_doctor_source_trim_first",
+                        ),
+                    )
+                )
+                continue
             out.append(
                 finding(
                     "clipping",
-                    "high",
+                    "medium",
                     t["name"],
                     f"peak {db:.1f} dBFS (>= 0)",
                     (
-                        f"{t['name']} is clipping (peak {db:.1f} dBFS). "
-                        "Pull its level down or add a limiter."
+                        f"{t['name']} peaks above 0 dBFS ({db:.1f}). "
+                        "Inside FL this is mainly a headroom/stem risk, not the same "
+                        "as Master output clipping."
                     ),
                     {
                         "intent": "fl_set_mixer_volume",
                         "args": {"track": t["index"]},
                         "alt_intent": "fl_apply_compression_intent",
-                        "desc": "reduce {} ~ -3 dB, or limit it".format(t["name"]),
+                        "desc": "trim {} or rebalance the source/bus before limiting".format(
+                            t["name"]
+                        ),
                     },
+                    (
+                        "master_peak_boundary",
+                        "mix_doctor_insert_headroom_context",
+                        "mix_doctor_source_trim_first",
+                    ),
                 )
             )
         elif db > CLIP_DB:
@@ -308,6 +410,12 @@ def rule_clipping(tracks):
                         "args": {"track": t["index"]},
                         "desc": "trim {} a few dB".format(t["name"]),
                     },
+                    (
+                        "master_peak_boundary",
+                        "mix_doctor_insert_headroom_context"
+                        if t.get("index") != 0
+                        else "mix_doctor_master_output_boundary",
+                    ),
                 )
             )
     return out
@@ -331,6 +439,11 @@ def rule_headroom(tracks):
                     "args": {"track": 0},
                     "desc": "lower Master / gain-stage to leave ~ -6 dB headroom",
                 },
+                (
+                    "master_peak_boundary",
+                    "mix_doctor_master_output_boundary",
+                    "mix_doctor_source_trim_first",
+                ),
             )
         )
     aud = [t for t in _audible(tracks) if t.get("peak_db") is not None]
@@ -350,6 +463,10 @@ def rule_headroom(tracks):
                     "args": {},
                     "desc": "trim the hot tracks ~ -3 dB or route them to a bus",
                 },
+                (
+                    "source_or_bus_trim_before_master_trim",
+                    "mix_doctor_source_trim_first",
+                ),
             )
         )
     return out
@@ -361,7 +478,14 @@ def rule_missing_hpf(tracks):
     (drum buses keep their lows), so it only flags melodic/vocal material. Low
     confidence -- a suggestion, not a confirmed problem (we have no spectrum)."""
     out = []
+    template_matched = _template_matched(tracks)
     for t in _audible(tracks):
+        if _template_policy_suppresses(t, "suppress_missing_hpf"):
+            continue
+        if _is_template_judgement_excluded(t):
+            continue
+        if template_matched and not _has_level_evidence(t):
+            continue
         nm = (t.get("name") or "").lower()
         if any(k in nm for k in LOW_END):  # bass/kick: HPF not expected
             continue
@@ -380,9 +504,11 @@ def rule_missing_hpf(tracks):
                     "confirmed problem).".format(t["name"]),
                     {
                         "intent": "fl_apply_eq_intent",
-                        "args": {"track": t["index"], "intent": "remove_mud"},
+                        "args": {"track": t["index"], "intent": "high_pass"},
                         "desc": "consider a high-pass on {}".format(t["name"]),
+                        "requires": "already-loaded Fruity Parametric EQ 2 with a free band",
                     },
+                    ("mix_doctor_existing_plugin_only",),
                 )
             )
     return out
@@ -410,6 +536,10 @@ def _imbalance(tracks, key, label, thresh, floor=None):
                         "args": {"track": t["index"]},
                         "desc": "balance {} toward the mix".format(t["name"]),
                     },
+                    (
+                        "source_or_bus_trim_before_master_trim",
+                        "mix_doctor_source_trim_first",
+                    ),
                 )
             )
     return out
@@ -424,10 +554,14 @@ def _dests(t):
 
 def rule_ungrouped(tracks):
     out = []
+    if _template_matched(tracks):
+        return out
     fams = {}
     for t in _audible(tracks):
+        if _is_template_judgement_excluded(t):
+            continue
         nm = (t.get("name") or "").lower()
-        if "bus" in nm:
+        if "bus" in nm or "\u25ba mix" in nm or "premaster" in nm:
             continue
         for fam, kws in FAMILIES.items():
             if any(k in nm for k in kws):
@@ -453,6 +587,11 @@ def rule_ungrouped(tracks):
                         "args": {"tracks": [m["index"] for m in members]},
                         "desc": f"group the {fam} tracks onto a bus",
                     },
+                    (
+                        "send_effects_for_shared_space",
+                        "preserve_existing_structure_first",
+                        "routing_ui_guidance_vs_mcp_write",
+                    ),
                 )
             )
     return out
@@ -519,6 +658,7 @@ def rule_eq_clash(tracks):
                         "args": {},
                         "desc": "ease overlapping boosts on {}".format(" / ".join(names)),
                     },
+                    ("mix_doctor_existing_plugin_only",),
                 )
             )
     return out
@@ -528,6 +668,9 @@ def diagnose(snapshot):
     """Run all rules on a snapshot. Returns findings ranked by severity +
     notes (e.g. 'play the project for level data'). PURE -- no writes."""
     tracks = snapshot.get("tracks", [])
+    template_context = snapshot.get("template_context") or _template_context_from_tracks(tracks)
+    if template_context.get("matched"):
+        tracks = templates.annotate_tracks(tracks, template_context)
     playing = snapshot.get("playing")
     levels_valid = snapshot.get("levels_valid", playing)  # watch capture also counts
     findings, notes = [], []
@@ -555,9 +698,298 @@ def diagnose(snapshot):
     return {
         "playing": playing,
         "track_count": len(tracks),
+        "template_context": template_context,
         "findings": findings,
         "notes": notes,
         "summary": summary,
+    }
+
+
+def _as_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_low_end(t):
+    nm = (t.get("name") or "").lower()
+    return any(k in nm for k in LOW_END)
+
+
+def low_end_stereo_safety(snapshot):
+    """Read-only low-end/stereo safety report.
+
+    This uses track names plus mixer metadata only: pan, FL's mixer stereo
+    separation control, and measured peaks when available. It does not claim
+    true phase-correlation, mono-sum, or spectral sub-band analysis.
+    """
+    tracks = snapshot.get("tracks", [])
+    template_context = snapshot.get("template_context") or _template_context_from_tracks(tracks)
+    if template_context.get("matched"):
+        tracks = templates.annotate_tracks(tracks, template_context)
+    template_matched = bool(template_context.get("matched"))
+    playing = snapshot.get("playing")
+    levels_valid = snapshot.get("levels_valid", playing)
+    audible = _audible(tracks)
+    low_tracks = [t for t in audible if _is_low_end(t)]
+    findings, notes = [], []
+
+    if not low_tracks:
+        notes.append(
+            "No named low-end tracks were detected. Name matching is limited to "
+            "kick/sub/bass/808/boom; manually check unlabeled low-frequency parts."
+        )
+
+    for t in low_tracks:
+        suppress_offcenter = _template_policy_suppresses(t, "suppress_offcenter_bass")
+        suppress_width = _template_policy_suppresses(t, "suppress_low_end_width")
+        if suppress_offcenter and suppress_width:
+            continue
+        if template_matched and not _has_level_evidence(t):
+            continue
+        pan = _as_float(t.get("pan"))
+        if (
+            not suppress_offcenter
+            and pan is not None
+            and abs(pan) >= LOW_END_PAN_RISK
+        ):
+            findings.append(
+                finding(
+                    "low_end_off_center",
+                    "medium",
+                    t["name"],
+                    f"pan {pan:+.2f}",
+                    (
+                        f"{t['name']} is a main low-end element panned {pan:+.2f}. "
+                        "Check mono compatibility and confirm this is intentional."
+                    ),
+                    {
+                        "intent": "manual_review",
+                        "args": {"track": t["index"]},
+                        "desc": "verify the main low-end stays solid when summed to mono",
+                    },
+                    (
+                        "low_end_mono_compatibility",
+                        "low_end_stereo_assistant_read_only",
+                    ),
+                )
+            )
+
+        sep = _as_float(t.get("stereo_sep"))
+        if not suppress_width and sep is not None and sep >= LOW_END_STEREO_SEP_RISK:
+            findings.append(
+                finding(
+                    "low_end_stereo_width",
+                    "medium",
+                    t["name"],
+                    f"mixer stereo separation {sep:+.2f}",
+                    (
+                        f"{t['name']} has positive mixer stereo separation "
+                        f"({sep:+.2f}), which widens/separates the track. Check "
+                        "mono-sum and low-band stability before export."
+                    ),
+                    {
+                        "intent": "manual_review",
+                        "args": {"track": t["index"]},
+                        "desc": "review stereo width/phase manually before applying any correction",
+                    },
+                    (
+                        "low_end_mono_compatibility",
+                        "low_end_stereo_assistant_read_only",
+                    ),
+                )
+            )
+
+    if levels_valid:
+        for t in low_tracks:
+            pk = _as_float(t.get("peak_db"))
+            if pk is not None and pk > HOT_DB:
+                findings.append(
+                    finding(
+                        "low_end_hot",
+                        "medium",
+                        t["name"],
+                        f"peak {pk:.1f} dBFS",
+                        (
+                            f"{t['name']} peaks at {pk:.1f} dBFS. This can crowd "
+                            "Master headroom and make low-end balancing harder."
+                        ),
+                        {
+                            "intent": "fl_apply_mix_adjustment",
+                            "args": {"track": t["index"], "kind": "trim_volume"},
+                            "desc": "trim source or bus only after approving the exact target",
+                        },
+                        (
+                            "source_or_bus_trim_before_master_trim",
+                            "low_end_stereo_assistant_read_only",
+                        ),
+                    )
+                )
+
+        active_low = [
+            t
+            for t in low_tracks
+            if _as_float(t.get("peak_db")) is not None
+            and _as_float(t.get("peak_db")) > LOW_END_LAYER_FLOOR_DB
+        ]
+    else:
+        if template_matched:
+            notes.append(
+                "No level data available. Recognized template low-end routing/pan "
+                "is preserved; low-end warnings need playback or Mix Review watch."
+            )
+        else:
+            notes.append(
+                "No level data available. Structural pan/stereo checks still run, but "
+                "hot low-end and Master-headroom checks need playback or Mix Review watch."
+            )
+        active_low = [] if template_matched else low_tracks
+
+    if len(active_low) >= LOW_END_LAYER_COUNT:
+        findings.append(
+            finding(
+                "low_end_layering_review",
+                "low",
+                None,
+                "{} active low-end tracks: {}".format(
+                    len(active_low),
+                    ", ".join(t.get("name") or f"Track {t.get('index')}" for t in active_low[:8]),
+                ),
+                "Multiple kick/sub/bass/808 layers are active. Check masking, "
+                "phase, and arrangement slots manually.",
+                {
+                    "intent": "manual_review",
+                    "args": {"tracks": [t["index"] for t in active_low]},
+                    "desc": "review low-end masking and phase relationships",
+                },
+                (
+                    "low_end_mono_compatibility",
+                    "low_end_stereo_assistant_read_only",
+                ),
+            )
+        )
+
+    master = next((t for t in tracks if t.get("index") == 0), None)
+    if levels_valid and master and master.get("peak_db") is not None:
+        mpk = _as_float(master.get("peak_db"))
+        if mpk is not None and mpk >= CLIP_HARD_DB:
+            sev = "high"
+            msg = "Master is at/above 0 dBFS; this is an output/render clipping risk."
+        elif mpk is not None and mpk > MASTER_HEADROOM_WARN_DB:
+            sev = "medium" if mpk <= CLIP_DB else "high"
+            msg = "Master has low headroom for mix review or manual mastering."
+        else:
+            sev = None
+        if sev:
+            findings.append(
+                finding(
+                    "master_headroom_risk",
+                    sev,
+                    "Master",
+                    f"Master peak {mpk:.1f} dBFS",
+                    f"{msg} Prefer source or bus trims before treating Master trim "
+                    "as the default fix.",
+                    {
+                        "intent": "fl_gain_stage",
+                        "args": {},
+                        "desc": "use source/bus gain staging before manual mastering",
+                    },
+                    (
+                        "master_peak_boundary",
+                        "mix_doctor_master_output_boundary",
+                        "source_or_bus_trim_before_master_trim",
+                        "low_end_stereo_assistant_read_only",
+                    ),
+                )
+            )
+
+    manual_checks = [
+        {
+            "topic": "mono_sum",
+            "check": (
+                "Mono-sum the loudest section and verify kick, sub, and bass "
+                "keep level and punch."
+            ),
+            "reason": (
+                "The MCP snapshot cannot measure true phase correlation or "
+                "mono cancellation."
+            ),
+            **_kb_fields(
+                (
+                    "low_end_mono_compatibility",
+                    "low_end_stereo_assistant_read_only",
+                )
+            ),
+        },
+        {
+            "topic": "side_low_end",
+            "check": (
+                "Manually inspect stereo enhancers, Haas delays, chorus, and "
+                "mid-side EQ on low-end tracks or buses."
+            ),
+            "reason": (
+                "Mixer pan/stereo_sep metadata cannot prove whether sub energy "
+                "is present in the side channel."
+            ),
+            **_kb_fields(
+                (
+                    "low_end_mono_compatibility",
+                    "low_end_stereo_assistant_read_only",
+                )
+            ),
+        },
+        {
+            "topic": "mastering_boundary",
+            "check": (
+                "Treat this as mix-readiness guidance; do not use mastering or "
+                "render automation as the correction."
+            ),
+            "reason": "Mastering boundaries stay manual and separate from mix fixes.",
+            **_kb_fields(
+                (
+                    "master_peak_boundary",
+                    "low_end_stereo_assistant_read_only",
+                )
+            ),
+        },
+    ]
+
+    findings.sort(key=lambda f: (SEV_RANK.get(f["severity"], 9), f["rule"]))
+    summary = {
+        sev: sum(1 for f in findings if f["severity"] == sev) for sev in ("high", "medium", "low")
+    }
+    summary.update(
+        {
+            "low_end_tracks": len(low_tracks),
+            "off_center_low_end": sum(1 for f in findings if f["rule"] == "low_end_off_center"),
+            "wide_low_end": sum(1 for f in findings if f["rule"] == "low_end_stereo_width"),
+        }
+    )
+
+    return {
+        "playing": playing,
+        "levels_valid": levels_valid,
+        "track_count": len(tracks),
+        "template_context": template_context,
+        "summary": summary,
+        "low_end_tracks": [
+            {
+                "track": t.get("index"),
+                "name": t.get("name"),
+                "pan": t.get("pan"),
+                "stereo_sep": t.get("stereo_sep"),
+                "peak_db": t.get("peak_db"),
+            }
+            for t in low_tracks
+        ],
+        "findings": findings,
+        "manual_checks": manual_checks,
+        "notes": notes,
+        "analysis_limits": (
+            "Name-based low-end detection plus mixer pan/stereo_sep/peak metadata only; "
+            "not true spectrum, phase-correlation, or mono-sum analysis."
+        ),
     }
 
 
@@ -621,6 +1053,12 @@ def plan_fixes(snapshot, target_peak_db=DEFAULT_TARGET_PEAK_DB):
                 "SOURCE keeps the rest of the mix intact (vs pulling the whole Master).".format(
                     t["name"], t["peak_db"]
                 ),
+                **_kb_fields(
+                    (
+                        "source_or_bus_trim_before_master_trim",
+                        "mix_doctor_source_trim_first",
+                    )
+                ),
             }
         )
 
@@ -649,6 +1087,13 @@ def plan_fixes(snapshot, target_peak_db=DEFAULT_TARGET_PEAK_DB):
                     "human": "Group: {}".format(f["evidence"]),
                     "reason": f["message"],
                     "note": "group apply wired after the volume-fix proof",
+                    **_kb_fields(
+                        (
+                            "send_effects_for_shared_space",
+                            "preserve_existing_structure_first",
+                            "routing_ui_guidance_vs_mcp_write",
+                        )
+                    ),
                 }
             )
 
@@ -674,7 +1119,7 @@ def gain_stage_plan(
 ):
     """PURE: propose per-track fader trims so each track's peak lands in a healthy
     band (default -12..-6 dB, aim -9) + Master headroom (-3..-6). Tracks already
-    in-band are left alone. Trims are trim_volume plans -> apply via fl_apply_mix_fix.
+    in-band are left alone. Trims are trim_volume plans -> apply via fl_apply_mix_adjustment.
 
     NOTE: FL's fader is POST-chain, so this sets a track's OUTPUT level, not a true
     pre-plugin input trim. Master is offered as an ALTERNATIVE (don't pull it AND
@@ -709,6 +1154,12 @@ def gain_stage_plan(
                 "target_peak_db": target_db,
                 "human": human,
                 "reason": reason,
+                **_kb_fields(
+                    (
+                        "source_or_bus_trim_before_master_trim",
+                        "mix_doctor_source_trim_first",
+                    )
+                ),
             }
         )
 

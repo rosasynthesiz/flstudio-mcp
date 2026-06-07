@@ -1,0 +1,82 @@
+{
+  "date": "2026-06-06",
+  "agent_author": "Codex",
+  "topic": "Mastering boundaries and assistant guidance",
+  "confidence_level": "docs_confirmed",
+  "source_method": [
+    "https://www.image-line.com/fl-studio-news/ai-mastering",
+    "https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/plugins/Maximus.htm",
+    "https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/mixer_levelsandmixing.htm",
+    "scratch/extractions/fDQsazzDwUU_raw.txt"
+  ],
+  "rules": [
+    {
+      "id": "mastering_after_mix_readiness",
+      "domain": "mastering",
+      "recommendation": "Run mix readiness checks before giving mastering guidance or touching already-loaded mastering plugins.",
+      "rationale": "Image-Line separates mixing from mastering and warns against relying on mastering to fix a poor mix.",
+      "tool_implications": [
+        "fl_check_project_preflight",
+        "fl_review_mix",
+        "fl_export_readiness_report"
+      ],
+      "safety_limits": [
+        "No render automation.",
+        "No project save/export automation."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "fl_cloud_mastering_manual_only",
+      "domain": "mastering",
+      "recommendation": "Present FL Cloud Mastering as a manual workflow, not as an MCP action.",
+      "rationale": "The workflow is accessed through FL Studio UI/export flow and is not exposed through the current rollback-safe MCP API.",
+      "tool_implications": [
+        "manual_guidance"
+      ],
+      "safety_limits": [
+        "Do not claim MCP can start FL Cloud Mastering.",
+        "Do not claim MCP can render or save the master."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "blind_ab_compare_mastering",
+      "domain": "mastering_review",
+      "recommendation": "Encourage blind comparison between original and mastered versions before choosing a master.",
+      "rationale": "The FL Cloud Mastering workflow includes a cycle switch to reduce confirmation bias during comparison.",
+      "tool_implications": [
+        "manual_guidance",
+        "future_reference_match"
+      ],
+      "safety_limits": [
+        "Do not infer quality solely from loudness."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "maximus_loaded_plugin_only",
+      "domain": "mastering_plugin",
+      "recommendation": "Use Maximus in MCP only when it is already loaded and parameters are readable/resolved; otherwise recommend manual loading.",
+      "rationale": "Maximus is documented for mastering and per-track dynamics, but plugin loading is out of scope and parameter writes need readback and calibration.",
+      "tool_implications": [
+        "fl_plugin",
+        "fl_plugin_get_params",
+        "fl_plugin_set_param"
+      ],
+      "safety_limits": [
+        "No plugin loading.",
+        "No uncalibrated parameter writes.",
+        "No full mastering-chain restore claims."
+      ],
+      "confidence_level": "docs_confirmed"
+    }
+  ],
+  "affected_api": "N/A",
+  "observation": "N/A",
+  "tested_values": "N/A",
+  "context": "N/A",
+  "result": "N/A",
+  "open_questions": "N/A",
+  "next_recommended_action": "N/A"
+}

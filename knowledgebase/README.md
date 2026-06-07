@@ -1,18 +1,28 @@
 # FL Studio MCP Knowledgebase
 
-Zweck dieser Knowledgebase ist die Dokumentation von maschinenlesbarem Wissen und menschlichen Erkenntnissen zur FL Studio API. Sie soll verhindern, dass LLMs wiederholt dieselben Fehler bei der API-Nutzung machen.
+The purpose of this knowledgebase is to document machine-readable knowledge and
+human insights about the FL Studio API and FL Studio production workflows. It is
+intended to prevent LLMs from repeatedly making the same mistakes when using the
+API, planning safe MCP actions, or reasoning about production workflows.
 
-## Ordnerrollen
-- `fl_api/`: Dokumentation einzelner FL Studio API-Module, Grenzen und Kalibrierungsverfahren.
-- `conversions/`: JSON/YAML-Mappings für Wertebereiche (z.B. UI-dB zu normalisierten Floats).
-- `recipes/`: Wiederverwendbare Workflows und Templates, die nicht im Code verankert sein sollten.
-- `known_pitfalls/`: Wiederkehrende Fehler und bekannte Probleme.
-- `agent_notes/`: Laufende Notizen, Lernprotokolle (`learning_log.md`) und offene Fragen.
+## Folder Roles
+- `fl_api/`: Documentation of individual FL Studio API modules, limitations, and calibration procedures.
+- `conversions/`: JSON/YAML mappings for value ranges (e.g., UI-dB to normalized floats).
+- `recipes/`: Reusable workflows and templates that should not be hardcoded.
+- `production/`: General FL Studio workflow, organization, and project-structure guidance.
+- `mixing/`: Non-genre-specific mixing guidance and assistant heuristics.
+- `mastering/`: Mastering guidance, boundaries, and manual-only workflows.
+- `performance/`: CPU, audio-buffer, and project-performance guidance.
+- `templates/`: FL Studio standard project template topology reports,
+  machine-readable compact profiles, and profile schemas.
+- `genres/`: Genre-specific production knowledge. Keep generic rules elsewhere.
+- `known_pitfalls/`: Recurring errors and known issues.
+- `agent_notes/`: Ongoing notes, learning logs (`learning_log.md`), and open questions.
 
-## Pflegepflicht
-Agenten **müssen** dieses Repository vor Änderungen konsultieren und neues Wissen dokumentieren (siehe `AGENTS.md`).
+## Maintenance Duty
+Agents **must** consult this repository before making changes and document any new knowledge (see `AGENTS.md`).
 
-## Confidence-Level
+## Confidence Levels
 - `hypothesis`
 - `user_reported`
 - `docs_confirmed`
@@ -22,9 +32,9 @@ Agenten **müssen** dieses Repository vor Änderungen konsultieren und neues Wis
 - `cross_platform_verified`
 - `deprecated_or_rejected`
 
-Markdown reicht für reine Erklärungen. **Sobald ein Mapping Tool-Entscheidungen beeinflusst, muss zusätzlich JSON/YAML aktualisiert werden.**
+Markdown is sufficient for explanations only. **As soon as a mapping influences tool decisions, JSON/YAML must be updated as well.**
 
-Wichtige Referenzen:
+Important references:
 - [AGENTS.md](../AGENTS.md)
 - [MCP_TOOL_POLICY.md](./MCP_TOOL_POLICY.md)
 - [Learning Log](./agent_notes/learning_log.md)

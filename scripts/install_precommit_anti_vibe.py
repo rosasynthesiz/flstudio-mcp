@@ -21,6 +21,7 @@ fi
 # -----------------------------
 """
 
+
 def install_hook():
     if not (ROOT_DIR / ".git").exists():
         print("Error: .git directory not found. Are you at the repository root?")
@@ -28,12 +29,12 @@ def install_hook():
 
     # Check if we already appended our hook
     if HOOK_PATH.exists():
-        with open(HOOK_PATH, "r", encoding="utf-8") as f:
+        with open(HOOK_PATH, encoding="utf-8") as f:
             content = f.read()
             if "Anti-Vibe Coding Hook" in content:
                 print("Anti-Vibe Coding hook is already installed.")
                 return
-                
+
         print("Appending to existing pre-commit hook...")
         mode = "a"
     else:
@@ -41,7 +42,7 @@ def install_hook():
         mode = "w"
         # Start with shebang if creating new
         HOOK_CONTENT_FINAL = "#!/bin/sh\n" + HOOK_CONTENT
-    
+
     with open(HOOK_PATH, mode, encoding="utf-8") as f:
         if mode == "a":
             f.write("\n" + HOOK_CONTENT)
@@ -51,6 +52,7 @@ def install_hook():
     # Ensure it's executable
     os.chmod(HOOK_PATH, 0o755)
     print("Successfully installed Anti-Vibe Coding pre-commit hook!")
+
 
 if __name__ == "__main__":
     install_hook()

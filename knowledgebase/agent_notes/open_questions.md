@@ -1,8 +1,8 @@
 # Open Questions
 
-- Exaktes dB-Mapping für `mixer.setEqGain` messen.
-- Exaktes Hz-Mapping für `mixer.setEqFrequency` messen.
-- Bandwidth/Q-Verhalten messen.
-- FL-Studio-Version, API-Version und Plattform dokumentieren.
-- Prüfen, ob Verhalten auf macOS und Windows identisch ist.
-- Prüfen, ob `getEqBandCount()` immer `3` zurückgibt oder versionabhängig ist.
+- Measure exact dB mapping for `mixer.setEqGain`.
+- Measure exact Hz mapping for `mixer.setEqFrequency`.
+- Measure Bandwidth/Q behavior.
+- Document FL Studio version, API version, and platform.
+- Check if behavior is identical on macOS and Windows.
+- Check if `getEqBandCount()` always returns `3` or if it's version-dependent.

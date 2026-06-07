@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fl_studio_mcp.server import build_server  # noqa: E402
 
 URIS = [
+    "fl://agent-briefing",
     "fl://status",
     "fl://project",
     "fl://transport",
@@ -56,6 +57,9 @@ def main() -> int:
             txt = _text(asyncio.run(m.read_resource(uri)))
             size = len(txt)
             flag = ""
+            if uri == "fl://agent-briefing" and size > 5000:
+                flag = "  <-- LARGE (>5KB)"
+                big_ok = False
             if uri in ("fl://mixer", "fl://channels", "fl://patterns") and size > 4000:
                 flag = "  <-- LARGE (>4KB)"
                 big_ok = False

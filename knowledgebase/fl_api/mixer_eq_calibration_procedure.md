@@ -1,17 +1,17 @@
-# Mixer EQ Kalibrierungs-Prozedur
+# Mixer EQ Calibration Procedure
 
-Anleitung zur Ermittlung verlässlicher Mappings für `setEqGain` und `setEqFrequency`.
+Guide for determining reliable mappings for `setEqGain` and `setEqFrequency`.
 
-## Vorgehen
-1. **Nur auf leerem Test-Mixer-Track testen.** Nicht während produktiver Sessions.
-2. Vorher Projekt speichern.
-3. Testwerte in kleinen Schritten (`0.0` bis `1.0`) setzen.
-4. Nach jedem Setzen den Wert mit `getEqGain(track, band, mode=1)` oder `getEqFrequency(track, band, mode=1)` zurücklesen.
-5. Ergebnisse in `mixer_eq_calibration.json` eintragen.
-6. **Keine Annahmen über lineare Mappings treffen.**
-7. FL-Studio-Version, API-Version und Plattform im JSON dokumentieren.
+## Procedure
+1. **Only test on an empty test mixer track.** Not during productive sessions.
+2. Save project beforehand.
+3. Set test values in small steps (`0.0` to `1.0`).
+4. After each set, read back the value using `getEqGain(track, band, mode=1)` or `getEqFrequency(track, band, mode=1)`.
+5. Enter results into `mixer_eq_calibration.json`.
+6. **Do not make assumptions about linear mappings.**
+7. Document FL Studio version, API version, and platform in the JSON.
 
-## JSON Beispiel-Fragment
+## JSON Example Fragment
 ```json
 {
   "normalized": 0.2502,

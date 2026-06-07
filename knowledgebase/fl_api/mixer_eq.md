@@ -1,8 +1,8 @@
-# Interner FL Studio Mixer EQ
+# Internal FL Studio Mixer EQ
 
-Dokumentation der internen FL Studio Mixer EQ API.
+Documentation of the internal FL Studio Mixer EQ API.
 
-## API Funktionen
+## API Functions
 ```python
 mixer.getEqBandCount()
 
@@ -16,14 +16,14 @@ mixer.getEqBandwidth(track, band)
 mixer.setEqBandwidth(track, band, value)
 ```
 
-## Bänder
+## Bands
 - Band `0` = Low
 - Band `1` = Mid
 - Band `2` = High
 
-## Wichtige Regeln
-- Setter erwarten **normalisierte Float-Werte**, nicht dB oder Hz. (`docs_confirmed`)
-- `getEqGain(..., mode=1)` kann dB liefern. (`user_reported`)
-- `getEqFrequency(..., mode=1)` kann Hz liefern. (`user_reported`)
-- `setEqGain(...)` akzeptiert KEINE dB. (`docs_confirmed`)
-- `setEqFrequency(...)` akzeptiert KEINE Hz. (`docs_confirmed`)
+## Important Rules
+- Setters expect **normalized float values**, not dB or Hz. (`docs_confirmed`)
+- `getEqGain(..., mode=1)` can return dB. (`user_reported`)
+- `getEqFrequency(..., mode=1)` can return Hz. (`user_reported`)
+- `setEqGain(...)` accepts NO dB. (`docs_confirmed`)
+- `setEqFrequency(...)` accepts NO Hz. (`docs_confirmed`)

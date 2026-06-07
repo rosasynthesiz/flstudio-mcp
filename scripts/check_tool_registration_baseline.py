@@ -14,24 +14,24 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from audit_tool_safety import TOOLS_DIR, audit_file, count_by_status  # noqa: E402
 from fastmcp import FastMCP  # noqa: E402
 
-from audit_tool_safety import TOOLS_DIR, audit_file, count_by_status  # noqa: E402
 from fl_studio_mcp import __version__  # noqa: E402
 from fl_studio_mcp import server as server_module  # noqa: E402
 
-EXPECTED_REGISTERED_TOOL_COUNT = 86
-EXPECTED_STATIC_TOOL_COUNT = 165
+EXPECTED_REGISTERED_TOOL_COUNT = 87
+EXPECTED_STATIC_TOOL_COUNT = 166
 EXPECTED_REGISTERED_SAFETY_SUMMARY = {
     "external-write": 2,
-    "read-only": 40,
+    "read-only": 41,
     "server-state": 4,
     "unannotated": 7,
     "write-safe": 33,
 }
 EXPECTED_STATIC_SAFETY_SUMMARY = {
     "external-write": 2,
-    "read-only": 70,
+    "read-only": 71,
     "server-state": 4,
     "transient": 5,
     "write-gap": 0,
@@ -67,11 +67,7 @@ def _registration_calls() -> list[RegistrationCall]:
             and isinstance(func.value, ast.Name)
         ):
             continue
-        if (
-            not call.args
-            or not isinstance(call.args[0], ast.Name)
-            or call.args[0].id != "mcp"
-        ):
+        if not call.args or not isinstance(call.args[0], ast.Name) or call.args[0].id != "mcp":
             continue
         calls.append(RegistrationCall(alias=func.value.id, line=node.lineno))
     return calls

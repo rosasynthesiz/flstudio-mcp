@@ -85,7 +85,9 @@ def test_registry_covers_transport_mixer_and_channel_specs() -> None:
         ("transport", "stop"),
         ("transport", "toggle_play"),
     }.issubset(ids)
-    classes = {(spec.domain, spec.action): spec.safety_class for spec in operations.list_operations()}
+    classes = {
+        (spec.domain, spec.action): spec.safety_class for spec in operations.list_operations()
+    }
     assert classes[("transport", "play")] == "transient"
     assert classes[("transport", "get_tempo")] == "read-only"
     assert classes[("mixer", "set_volume")] == "write-safe"
@@ -246,9 +248,7 @@ def test_channel_basic_write_specs_match_existing_safe_payloads() -> None:
         "params": {"channel": 1, "name": "Sampler"},
     }
 
-    target = operations.prepare_operation(
-        "channel", "set_mixer_target", {"channel": 1, "track": 8}
-    )
+    target = operations.prepare_operation("channel", "set_mixer_target", {"channel": 1, "track": 8})
     assert target.command.as_dict() == {
         "command": protocol.CMD_CHANNEL_SET_TARGET,
         "params": {"channel": 1, "track": 8},
@@ -304,9 +304,7 @@ def test_channel_mute_solo_select_color_and_steps_specs_match_payloads() -> None
         "params": {"channel": 1},
     }
 
-    color = operations.prepare_operation(
-        "channel", "set_color", {"channel": 3, "color": 0x112233}
-    )
+    color = operations.prepare_operation("channel", "set_color", {"channel": 3, "color": 0x112233})
     assert color.command.as_dict() == {
         "command": protocol.CMD_CHANNEL_SET_COLOR,
         "params": {"channel": 3, "color": 0x112233},
@@ -482,7 +480,9 @@ def test_playlist_specs_match_existing_safe_payloads() -> None:
         "params": {"index": 3, "name": "Track 3"},
     }
 
-    color = operations.prepare_operation("playlist", "set_color", {"index": 3, "r": 1, "g": 2, "b": 3})
+    color = operations.prepare_operation(
+        "playlist", "set_color", {"index": 3, "r": 1, "g": 2, "b": 3}
+    )
     assert color.command.as_dict() == {
         "command": protocol.CMD_PLAYLIST_SET_COLOR,
         "params": {"index": 3, "r": 1, "g": 2, "b": 3},
@@ -500,7 +500,9 @@ def test_effect_and_eq_specs_match_existing_safe_payloads() -> None:
         "params": {"track": 5, "slot": 2},
     }
 
-    mix = operations.prepare_operation("effect", "set_slot_mix", {"track": 5, "slot": 2, "mix": 0.25})
+    mix = operations.prepare_operation(
+        "effect", "set_slot_mix", {"track": 5, "slot": 2, "mix": 0.25}
+    )
     assert mix.snapshot_scope == "effect_slot:5:2"
     assert _restore(mix, {"mix": 0.8}) == {
         "command": protocol.CMD_MIXER_SET_SLOT_MIX,
@@ -559,7 +561,9 @@ def test_plugin_specs_match_existing_safe_payloads() -> None:
         "params": {"track": 5},
     }
 
-    params = operations.prepare_operation("plugin", "list_params", {"track": 5, "slot": 2, "start": 150})
+    params = operations.prepare_operation(
+        "plugin", "list_params", {"track": 5, "slot": 2, "start": 150}
+    )
     assert params.command.as_dict() == {
         "command": protocol.CMD_PLUGIN_GET_PARAMS,
         "params": {"track": 5, "slot": 2, "start": 150},

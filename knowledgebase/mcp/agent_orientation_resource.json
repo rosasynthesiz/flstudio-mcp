@@ -1,0 +1,59 @@
+{
+  "date": "2026-06-07",
+  "agent_author": "Codex",
+  "topic": "fl://agent-briefing read-only MCP resource",
+  "affected_file_api": [
+    "src/fl_studio_mcp/tools/resources.py",
+    "tests/test_agent_briefing_resource.py",
+    "tests/test_resources.py",
+    "docs/AGENT_ORIENTATION.md",
+    "docs/USER_GUIDE.md",
+    "AGENTS.md",
+    "README.md",
+    "skills/flstudio-production/SKILL.md",
+    "skills/flstudio-production/references/tool-map.md"
+  ],
+  "context": "Agents need a compact, current, safety-first entrypoint before choosing FLStudioMCP tools.",
+  "observation": "fl://agent-briefing returns startup guidance, safe bridge/status summary or error, current domain tools, workflow categories, token-saving strategy, safety rules, and stop rules. It avoids broad list reads and does not add controller commands or write behavior.",
+  "tested_values": [
+    "resource read through real FastMCP server path",
+    "compact output under 5 KB",
+    "current domain-tool names present",
+    "removed alias names absent",
+    "bridge-down-safe behavior via existing resource safe-call pattern"
+  ],
+  "result": "The resource is read-only, compact, and safe to read when the FL bridge is unavailable. It guides agents toward current domain/workflow tools and Knowledgebase-first behavior without changing FL Studio state.",
+  "confidence_level": "implementation_verified",
+  "source_method": "Static implementation review plus focused Python resource tests. No live FL Studio write or live bridge verification was run.",
+  "valid_ranges": {
+    "resource_uri": "fl://agent-briefing",
+    "max_tested_output_bytes": 5000,
+    "bridge_status_scope": [
+      "alive",
+      "heartbeat_age_seconds",
+      "fl_version",
+      "tempo_bpm",
+      "playing",
+      "error"
+    ],
+    "mutation_allowed": false
+  },
+  "examples": {
+    "startup": "Read fl://agent-briefing, then fl://status, then choose a current workflow/domain tool such as fl_review_mix, fl_project_health_overview, fl_mixer, or fl_batch."
+  },
+  "known_pitfalls": [
+    "The resource is orientation only.",
+    "It does not prove that FL Studio is connected.",
+    "It does not prove that a target is selected.",
+    "It does not prove that a write is safe for a specific user request.",
+    "Agents must still check the Knowledgebase and use rollback-backed write paths."
+  ],
+  "reproduction_steps": [
+    ".venv/bin/python -m pytest tests/test_agent_briefing_resource.py",
+    ".venv/bin/python tests/test_resources.py"
+  ],
+  "open_questions": [
+    "Live FL bridge output can vary by controller build and should be verified during live workflow smoke tests."
+  ],
+  "next_recommended_action": "Keep the resource synchronized when public domain tools, workflow entrypoints, or stop rules change."
+}

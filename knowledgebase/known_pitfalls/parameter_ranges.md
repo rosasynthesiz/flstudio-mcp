@@ -1,19 +1,19 @@
 # Pitfall: Parameter Ranges & Units
 
-Viele FL-Studio-Setter erwarten normalisierte Werte von `0.0` bis `1.0`.
-UI-Werte, dB, Hz, Prozent, MIDI-CC und normalisierte Werte **dürfen nicht vermischt werden.**
+Many FL Studio setters expect normalized values from `0.0` to `1.0`.
+UI values, dB, Hz, percentages, MIDI-CC, and normalized values **must not be mixed.**
 
-**Beispiel falsch:**
+**Incorrect Example:**
 ```python
 mixer.setEqGain(5, 0, -14)
 ```
 
-**Beispiel richtig (High-Level-Wrapper):**
+**Correct Example (High-Level Wrapper):**
 ```python
 set_internal_mixer_eq_gain_db(track=5, band=0, db=-14)
 ```
 
-**Beispiel richtig (API mit kalibrierter Kenntnis):**
+**Correct Example (API with calibrated knowledge):**
 ```python
 mixer.setEqGain(5, 0, 0.2502)
 ```

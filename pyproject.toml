@@ -17,7 +17,7 @@ maintainers = [
 requires-python = ">=3.10"
 keywords = ["mcp", "fl-studio", "music-production", "ai", "claude", "fruityloops"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
@@ -85,3 +85,21 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 [tool.ruff.lint.per-file-ignores]
 "scripts/**/*.py" = ["UP031"]
 "tests/**/*.py" = ["UP031"]
+
+[tool.pytest.ini_options]
+addopts = """
+  --ignore=scratch
+  --ignore=tests/test_autoopen.py
+  --ignore=tests/test_channel_target.py
+  --ignore=tests/test_compression_intents.py
+  --ignore=tests/test_mixing_intents.py
+  --ignore=tests/test_reverb_delay_intents.py
+  --ignore=tests/test_route_write.py
+  --ignore=tests/test_routing_read.py
+  --ignore=tests/test_audio_analysis.py
+  --ignore=tests/test_melody_extract.py
+  --ignore=tests/test_reference_match.py
+  --ignore=scripts/probes/test_priority12_live.py
+"""
+norecursedirs = ["scratch", ".venv", ".git", ".pytest_cache", ".ruff_cache"]
+

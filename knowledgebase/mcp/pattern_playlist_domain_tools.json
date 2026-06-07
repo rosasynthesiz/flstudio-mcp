@@ -9,7 +9,7 @@
     "pattern protocol commands",
     "playlist track protocol commands"
   ],
-  "context": "v1.2 slice 08 adds additive domain tools beside the legacy pattern/playlist tools for parity testing and lower tool-selection overhead.",
+  "context": "v1.2 slice 08 introduced the pattern/playlist domain tools additively for parity testing and lower tool-selection overhead. In the current v2.0 public surface, legacy pattern/playlist aliases covered by fl_pattern and fl_playlist are retired.",
   "observation": "fl_pattern(action, params) and fl_playlist(action, params) validate through the internal operation registry. Read-only actions use registry-built protocol payloads. Persistent writes route through safety.safe_write.",
   "tested_values": [
     {"tool": "fl_pattern", "action": "list", "params": {}},
@@ -58,5 +58,5 @@
   "open_questions": [
     "Run live FL Studio smoke tests when the bridge and controller are available."
   ],
-  "next_recommended_action": "Implement slice 09, the additive effect and plugin domain tools, using the same registry-first and safety-layer pattern."
+  "next_recommended_action": "Keep fl_pattern and fl_playlist aligned with the operation registry and public registration baseline."
 }

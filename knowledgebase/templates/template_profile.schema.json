@@ -1,0 +1,320 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fl-studio-mcp.local/schemas/template_profile.schema.json",
+  "title": "FL Studio Template Profile",
+  "description": "Compact read-only profile for an FL Studio project template topology.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile_kind",
+    "template_name",
+    "template_slug",
+    "source",
+    "mixer_tracks",
+    "reserved_ranges",
+    "known_control_routes",
+    "channel_routes",
+    "template_detection",
+    "open_questions"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "profile_kind": {
+      "const": "fl_studio_template_profile"
+    },
+    "template_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "template_slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "date", "confidence"],
+      "properties": {
+        "type": {
+          "enum": ["live_fl_dump", "normalized_live_dump", "manual_profile"]
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "fl_version": {
+          "type": ["string", "null"]
+        },
+        "controller_build": {
+          "type": ["string", "null"]
+        },
+        "source_dump_path": {
+          "type": ["string", "null"]
+        },
+        "generated_by": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "mixer_tracks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/mixer_track"
+      }
+    },
+    "reserved_ranges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reserved_range"
+      }
+    },
+    "known_control_routes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/control_route"
+      }
+    },
+    "channel_routes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/channel_route"
+      }
+    },
+    "template_detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_track_names",
+        "required_routes",
+        "reserved_placeholder_min_count",
+        "confidence_notes"
+      ],
+      "properties": {
+        "required_track_names": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["track", "name"],
+            "properties": {
+              "track": {"type": "integer", "minimum": 0},
+              "name": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "required_routes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source", "targets"],
+            "properties": {
+              "source": {"type": "integer", "minimum": 0},
+              "targets": {
+                "type": "array",
+                "items": {"type": "integer", "minimum": 0},
+                "minItems": 1
+              }
+            }
+          }
+        },
+        "reserved_placeholder_min_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "confidence_notes": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  },
+  "$defs": {
+    "confidence": {
+      "enum": [
+        "hypothesis",
+        "user_reported",
+        "docs_confirmed",
+        "measured_once",
+        "measured_repeated",
+        "implementation_verified",
+        "cross_platform_verified",
+        "deprecated_or_rejected"
+      ]
+    },
+    "role": {
+      "enum": [
+        "master",
+        "premaster",
+        "stem_bus",
+        "source",
+        "sidechain_control",
+        "reserved_placeholder",
+        "utility",
+        "unknown"
+      ]
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target"],
+      "properties": {
+        "target": {"type": "integer", "minimum": 0},
+        "target_name": {"type": ["string", "null"]},
+        "level": {"type": ["number", "null"]},
+        "meaning": {"type": ["string", "null"]}
+      }
+    },
+    "volume": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["normalized", "db"],
+      "properties": {
+        "normalized": {"type": ["number", "null"]},
+        "db": {"type": ["number", "null"]}
+      }
+    },
+    "tool_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "suppress_missing_hpf",
+        "suppress_unused_track",
+        "suppress_ungrouped",
+        "suppress_low_end_width",
+        "suppress_offcenter_bass",
+        "suppress_layering_warning_without_audio"
+      ],
+      "properties": {
+        "suppress_missing_hpf": {"type": "boolean"},
+        "suppress_unused_track": {"type": "boolean"},
+        "suppress_ungrouped": {"type": "boolean"},
+        "suppress_low_end_width": {"type": "boolean"},
+        "suppress_offcenter_bass": {"type": "boolean"},
+        "suppress_layering_warning_without_audio": {"type": "boolean"}
+      }
+    },
+    "plugin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slot", "name", "enabled", "mix", "parameter_count", "parameter_signature"],
+      "properties": {
+        "slot": {"type": "integer", "minimum": 0},
+        "name": {"type": "string"},
+        "enabled": {"type": ["boolean", "null"]},
+        "mix": {"type": ["number", "null"]},
+        "parameter_count": {"type": "integer", "minimum": 0},
+        "parameter_signature": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["index", "name", "value", "normalized", "display"],
+            "properties": {
+              "index": {"type": "integer", "minimum": 0},
+              "name": {"type": ["string", "null"]},
+              "value": {"type": ["number", "string", "null"]},
+              "normalized": {"type": ["number", "null"]},
+              "display": {"type": ["string", "null"]}
+            }
+          }
+        }
+      }
+    },
+    "mixer_track": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "name",
+        "role",
+        "is_reserved",
+        "is_intentionally_silent",
+        "routes_to",
+        "receives_from",
+        "pan",
+        "stereo_separation",
+        "volume",
+        "plugins",
+        "tool_policy"
+      ],
+      "properties": {
+        "index": {"type": "integer", "minimum": 0},
+        "name": {"type": "string"},
+        "role": {"$ref": "#/$defs/role"},
+        "is_reserved": {"type": "boolean"},
+        "is_intentionally_silent": {"type": "boolean"},
+        "routes_to": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/route"}
+        },
+        "receives_from": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 0}
+        },
+        "pan": {"type": ["number", "null"]},
+        "stereo_separation": {"type": ["number", "null"]},
+        "volume": {"$ref": "#/$defs/volume"},
+        "plugins": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/plugin"}
+        },
+        "tool_policy": {"$ref": "#/$defs/tool_policy"}
+      }
+    },
+    "reserved_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "role", "default_routes_to", "reason"],
+      "properties": {
+        "from": {"type": "integer", "minimum": 0},
+        "to": {"type": "integer", "minimum": 0},
+        "role": {"const": "reserved_placeholder"},
+        "default_routes_to": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 0}
+        },
+        "route_level": {"type": ["number", "null"]},
+        "reason": {"type": "string"}
+      }
+    },
+    "control_route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "targets", "level", "meaning"],
+      "properties": {
+        "source": {"type": "integer", "minimum": 0},
+        "targets": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 0},
+          "minItems": 1
+        },
+        "level": {"type": ["number", "null"]},
+        "meaning": {"type": "string", "minLength": 1}
+      }
+    },
+    "channel_route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel_index", "channel_name", "target_mixer_track"],
+      "properties": {
+        "channel_index": {"type": "integer", "minimum": 0},
+        "channel_name": {"type": "string"},
+        "target_mixer_track": {"type": ["integer", "null"], "minimum": 0},
+        "target_name": {"type": ["string", "null"]},
+        "type": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

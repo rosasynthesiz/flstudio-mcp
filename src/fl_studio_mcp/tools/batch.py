@@ -7,8 +7,8 @@ from typing import Annotated, Any
 from fastmcp import FastMCP
 from pydantic import Field
 
-from .. import safety
 from .. import operations as operation_registry
+from .. import safety
 from ..connection import FLCommandFailed, FLNotRunning, FLTimeout, get_bridge
 
 MAX_BATCH_OPERATIONS = 50
@@ -200,9 +200,7 @@ def _prepare_read_only_batch(raw_operations: Any) -> list[operation_registry.Pre
     return prepared
 
 
-def _validate_batch_whitelist(
-    item: operation_registry.PreparedOperation, index: int
-) -> None:
+def _validate_batch_whitelist(item: operation_registry.PreparedOperation, index: int) -> None:
     key = (item.domain, item.action)
     if key in READ_ONLY_BATCH_WHITELIST or key in PERSISTENT_WRITE_BATCH_WHITELIST:
         return
@@ -288,6 +286,8 @@ def _bridge_call(bridge, command: str, params: dict | None = None) -> dict:
     except FLNotRunning as e:
         raise RuntimeError(str(e)) from e
     except FLTimeout as e:
-        raise RuntimeError(f"{e}. Try fl_transport(action='ping') to confirm the controller is alive.") from e
+        raise RuntimeError(
+            f"{e}. Try fl_transport(action='ping') to confirm the controller is alive."
+        ) from e
     except FLCommandFailed as e:
         raise RuntimeError(f"FL Studio rejected the command: {e}") from e

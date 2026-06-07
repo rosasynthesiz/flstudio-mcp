@@ -14,6 +14,8 @@ import sys
 import threading
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fl_studio_mcp import protocol  # noqa: E402
@@ -62,44 +64,44 @@ class _Handler(socketserver.StreamRequestHandler):
         self.wfile.write((json.dumps(resp) + "\n").encode("utf-8"))
 
 
-def check(label: str, condition: bool) -> bool:
-    print(f"[{'PASS' if condition else 'FAIL'}] {label}")
-    return condition
-
-
-def main() -> int:
+@pytest.fixture
+def mock_server():
+    _State.bpm = 120.0
+    _State.calls.clear()
     server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), _Handler)
     server.daemon_threads = True
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    bridge = TCPBridge(host="127.0.0.1", port=server.server_address[1], default_timeout=2.0)
-
-    passed = True
-    try:
-        passed &= check("bridge reports alive", bridge.is_alive() is True)
-        passed &= check("heartbeat age is recent", bridge.heartbeat_age() is not None)
-        ping = bridge.call(protocol.CMD_PING)
-        passed &= check(
-            "ping protocol version", ping["protocol_version"] == protocol.PROTOCOL_VERSION
-        )
-        tempo = bridge.call(protocol.CMD_GET_TEMPO)
-        passed &= check("initial tempo", tempo["bpm"] == 120.0)
-        changed = bridge.call(protocol.CMD_SET_TEMPO, {"bpm": 128.0})
-        passed &= check("set tempo", changed["bpm"] == 128.0)
-        notes = bridge.apply_notes([{"pitch": 60, "time_bars": 0, "length_bars": 0.25}])
-        passed &= check("apply_notes proxied", notes["notes_written"] == 1 and notes["triggered"])
-        try:
-            bridge.call("not_a_command")
-        except FLCommandFailed as exc:
-            passed &= check("command failure mapped", exc.code == "client")
-        else:
-            passed &= check("command failure mapped", False)
-    finally:
-        server.shutdown()
-        server.server_close()
-
-    return 0 if passed else 1
+    yield server
+    server.shutdown()
+    server.server_close()
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+@pytest.fixture
+def bridge(mock_server):
+    b = TCPBridge(host="127.0.0.1", port=mock_server.server_address[1], default_timeout=2.0)
+    return b
+
+
+def test_bridge_mock(bridge):
+    assert bridge.is_alive() is True
+    assert bridge.heartbeat_age() is not None
+
+    ping = bridge.call(protocol.CMD_PING)
+    assert ping["protocol_version"] == protocol.PROTOCOL_VERSION
+
+    tempo = bridge.call(protocol.CMD_GET_TEMPO)
+    assert tempo["bpm"] == 120.0
+
+    changed = bridge.call(protocol.CMD_SET_TEMPO, {"bpm": 128.0})
+    assert changed["bpm"] == 128.0
+
+    notes = bridge.apply_notes([{"pitch": 60, "time_bars": 0, "length_bars": 0.25}])
+    assert notes["notes_written"] == 1
+    assert notes["triggered"] is True
+
+    with pytest.raises(FLCommandFailed) as excinfo:
+        bridge.call("not_a_command")
+    
+    assert excinfo.value.code == "client"
+

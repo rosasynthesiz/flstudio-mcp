@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline test for Mix Doctor diagnosis rules -- SYNTHETIC snapshots, no FL.
+"""Offline test for Mix Review diagnosis rules -- SYNTHETIC snapshots, no FL.
 
 Each rule gets a snapshot that should trip it (and a clean mix that shouldn't).
 Proves the rules are transparent + correct before we trust them live.
@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fl_studio_mcp.music import mix_doctor as md  # noqa: E402
+from fl_studio_mcp.tools import mix_doctor as mix_tool  # noqa: E402
 
 _P = _F = 0
 
@@ -36,6 +37,8 @@ def trk(
     vol_db=0.0,
     vol_norm=0.8,
     peak_max=None,
+    pan=0.0,
+    stereo_sep=None,
     mute=False,
     plugins=None,
     routes_to=None,
@@ -45,7 +48,8 @@ def trk(
         "name": name,
         "vol_db": vol_db,
         "vol_norm": vol_norm,
-        "pan": 0.0,
+        "pan": pan,
+        "stereo_sep": stereo_sep,
         "mute": mute,
         "solo": False,
         "peak_max": peak_max,
@@ -75,6 +79,18 @@ class FakeBridge:
         return {"peak_max": v}
 
 
+class MockMCP:
+    def __init__(self):
+        self.tools = {}
+
+    def tool(self, annotations=None):
+        def decorator(func):
+            self.tools[func.__name__] = func
+            return func
+
+        return decorator
+
+
 def main() -> int:
     # 1) clipping + headroom (playing): Master at 0 dBFS, a track over 0.
     snap = {
@@ -89,8 +105,16 @@ def main() -> int:
     hits = rules_hit(r)
     check("clipping flagged when track > 0 dBFS", "clipping" in hits, str(hits))
     check(
-        "clipping severity high for Lead",
-        any(f["severity"] == "high" and f["track"] == "Lead" for f in r["findings"]),
+        "Master clipping severity high",
+        any(f["severity"] == "high" and f["track"] == "Master" for f in r["findings"]),
+    )
+    check(
+        "insert clipping is medium headroom context",
+        any(f["severity"] == "medium" and f["track"] == "Lead" for f in r["findings"]),
+    )
+    check(
+        "clipping findings carry KB policy references",
+        all(f.get("kb_rule_ids") for f in r["findings"] if f["rule"] == "clipping"),
     )
     check("headroom flagged when Master near 0 dBFS", "headroom" in hits, str(hits))
 
@@ -111,6 +135,12 @@ def main() -> int:
     check("missing_hpf SKIPS Bass (low-end)", "Bass" not in hpf_tracks)
     check("missing_hpf SKIPS Synth (has EQ)", "Synth" not in hpf_tracks)
     check("missing_hpf SKIPS Snare (drum-family)", "Snare" not in hpf_tracks)
+    hpf_finding = next(f for f in r["findings"] if f["rule"] == "missing_hpf")
+    check(
+        "missing_hpf proposes high_pass intent, not remove_mud",
+        hpf_finding["proposed_fix"]["args"]["intent"] == "high_pass",
+        str(hpf_finding["proposed_fix"]),
+    )
 
     # 3) fader imbalance (stopped): one track way above the median fader.
     snap = {
@@ -309,6 +339,10 @@ def main() -> int:
         "gain-stage flags Master headroom as ALTERNATIVE",
         "Master" in by and by["Master"].get("alternative") is True,
     )
+    check(
+        "gain-stage proposals carry KB policy references",
+        all(p.get("kb_rule_ids") for p in gp["plans"]),
+    )
 
     # 11) mix_band_balance: name-based bucketing + shares sum to 100.
     snap = {
@@ -331,6 +365,121 @@ def main() -> int:
         "band shares sum ~100%%",
         abs(sum(bal["bands_pct"].values()) - 100.0) <= 0.5,
         str(bal["bands_pct"]),
+    )
+
+    # 12) Low-End/Stereo Safety Assistant flags only conservative metadata-backed risks.
+    snap = {
+        "playing": True,
+        "levels_valid": True,
+        "tracks": [
+            trk(0, "Master", peak_max=db_lin(-0.5)),
+            trk(1, "Kick", pan=0.28, stereo_sep=0.0, peak_max=db_lin(-2.0)),
+            trk(2, "Sub Bass", pan=0.0, stereo_sep=0.32, peak_max=db_lin(-7.0)),
+            trk(3, "808 Layer", peak_max=db_lin(-10.0)),
+        ],
+    }
+    low = md.low_end_stereo_safety(snap)
+    low_hits = {f["rule"] for f in low["findings"]}
+    check("low-end review flags off-center main low-end", "low_end_off_center" in low_hits)
+    check("low-end review flags widened low-end metadata", "low_end_stereo_width" in low_hits)
+    check("low-end review flags hot low-end peak", "low_end_hot" in low_hits)
+    check("low-end review flags Master headroom risk", "master_headroom_risk" in low_hits)
+    check(
+        "low-end review flags multiple active low-end layers",
+        "low_end_layering_review" in low_hits,
+    )
+    check(
+        "low-end review carries KB policy references",
+        all(f.get("kb_rule_ids") for f in low["findings"])
+        and all(c.get("kb_rule_ids") for c in low["manual_checks"]),
+    )
+    stopped_low = md.low_end_stereo_safety(
+        {
+            "playing": False,
+            "levels_valid": False,
+            "tracks": [trk(1, "Bass", pan=0.0, stereo_sep=0.0, peak_max=db_lin(0.0))],
+        }
+    )
+    check(
+        "stopped low-end review skips hot peak rules without level data",
+        "low_end_hot" not in {f["rule"] for f in stopped_low["findings"]},
+    )
+
+    # 13) user-facing Mix Review output keeps per-row KB metadata compact.
+    mcp = MockMCP()
+    mix_tool.register(mcp)
+    tool_snap = {
+        "playing": True,
+        "track_count": 4,
+        "levels_valid": True,
+        "peak_window": {"source": "synthetic"},
+        "tracks": [
+            trk(0, "Master", peak_max=db_lin(0.0)),
+            trk(1, "VOX", vol_db=0.0, peak_max=db_lin(-0.8)),
+            trk(2, "Pad", vol_db=0.0, peak_max=db_lin(-12.0)),
+            trk(3, "Sub Bass", stereo_sep=0.4, peak_max=db_lin(-6.0)),
+        ],
+    }
+    original_get_bridge = mix_tool.get_bridge
+    original_gather_snapshot = mix_tool.md.gather_snapshot
+    try:
+        mix_tool.get_bridge = lambda: object()
+        mix_tool.md.gather_snapshot = lambda _bridge, **_kwargs: tool_snap
+        tool_out = mcp.tools["fl_review_mix"]()
+        gain_out = mcp.tools["fl_gain_stage"]()
+        low_out = mcp.tools["fl_review_low_end_stereo"]()
+    finally:
+        mix_tool.get_bridge = original_get_bridge
+        mix_tool.md.gather_snapshot = original_gather_snapshot
+
+    check("tool diagnosis output ok", tool_out.get("ok") is True)
+    check(
+        "tool findings omit full per-row KB rule details",
+        all("kb_rules" not in f for f in tool_out.get("findings", [])),
+    )
+    check(
+        "tool proposals omit full per-row KB rule details",
+        all("kb_rules" not in p for p in tool_out.get("proposals", [])),
+    )
+    check(
+        "tool findings keep compact KB ids and confidence",
+        any(
+            f.get("kb_rule_ids") and f.get("kb_confidence_levels")
+            for f in tool_out.get("findings", [])
+        ),
+    )
+    check(
+        "tool proposals keep compact KB ids and safety limits",
+        any(p.get("kb_rule_ids") and p.get("safety_limits") for p in tool_out.get("proposals", [])),
+    )
+    check(
+        "top-level KB refs keep source-qualified rule detail",
+        any(
+            ref.get("recommendation") and ref.get("source_file")
+            for ref in tool_out.get("kb_policy_refs", [])
+        ),
+    )
+    check("tool gain-stage output ok", gain_out.get("ok") is True)
+    check(
+        "tool gain-stage proposals omit full per-row KB rule details",
+        all("kb_rules" not in p for p in gain_out.get("proposals", [])),
+    )
+    check(
+        "tool gain-stage proposals keep compact KB confidence",
+        any(
+            p.get("kb_rule_ids") and p.get("kb_confidence_levels")
+            for p in gain_out.get("proposals", [])
+        ),
+    )
+    check("tool low-end/stereo output ok", low_out.get("ok") is True)
+    check(
+        "tool low-end findings omit full per-row KB rule details",
+        all("kb_rules" not in f for f in low_out.get("findings", [])),
+    )
+    check(
+        "tool low-end manual checks keep compact KB ids",
+        all("kb_rules" not in c for c in low_out.get("manual_checks", []))
+        and any(c.get("kb_rule_ids") for c in low_out.get("manual_checks", [])),
     )
 
     print("\n%d passed, %d failed" % (_P, _F))

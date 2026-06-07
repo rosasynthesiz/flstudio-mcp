@@ -16,7 +16,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fl_studio_mcp import protocol, safety  # noqa: E402
 from fl_studio_mcp.tools import mixer as mixer_tools  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # Minimal fake bridge
 # ---------------------------------------------------------------------------
@@ -25,8 +24,22 @@ from fl_studio_mcp.tools import mixer as mixer_tools  # noqa: E402
 class FakeBridge:
     def __init__(self) -> None:
         self.tracks: dict[int, dict] = {
-            0: {"name": "Master", "vol_norm": 0.8, "pan": 0.0, "mute": False, "solo": False, "track": 0},
-            1: {"name": "Track 1", "vol_norm": 0.8, "pan": 0.0, "mute": False, "solo": False, "track": 1},
+            0: {
+                "name": "Master",
+                "vol_norm": 0.8,
+                "pan": 0.0,
+                "mute": False,
+                "solo": False,
+                "track": 0,
+            },
+            1: {
+                "name": "Track 1",
+                "vol_norm": 0.8,
+                "pan": 0.0,
+                "mute": False,
+                "solo": False,
+                "track": 1,
+            },
         }
         self.selected_track = 0
         self.routes: dict[tuple[int, int], bool] = {}

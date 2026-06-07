@@ -1,0 +1,131 @@
+{
+  "date": "2026-06-06",
+  "agent_author": "Codex",
+  "topic": "General mixing heuristics for assistant reasoning",
+  "confidence_level": "docs_confirmed",
+  "source_method": [
+    "https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/mixer_levelsandmixing.htm",
+    "https://www.image-line.com/fl-studio-news/mixing-reverb",
+    "scratch/extractions/Mx7AnMUCDic_raw.txt",
+    "scratch/extractions/UWW-ppRjmCQ_raw.txt",
+    "scratch/extractions/gJUmUd4FfeM_raw.txt",
+    "scratch/extractions/EvqGNWS1LIs_raw.txt",
+    "scratch/extractions/hFRwk1LOdBU_raw.txt",
+    "scratch/extractions/4ICwZjBvgpo_raw.txt"
+  ],
+  "rules": [
+    {
+      "id": "mix_before_master",
+      "domain": "mixing",
+      "recommendation": "Resolve balance, sound choice, masking, routing, and track-level processing before proposing mastering.",
+      "rationale": "Image-Line explicitly separates mixing from mastering and warns against trying to solve poor mixes with mastering plugins.",
+      "tool_implications": [
+        "fl_review_mix",
+        "fl_gain_stage",
+        "fl_project_health_report"
+      ],
+      "safety_limits": [
+        "Do not apply mastering as a corrective substitute for mix cleanup."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "master_peak_boundary",
+      "domain": "levels",
+      "recommendation": "Treat Master peaks above 0 dBFS as render/output clipping risk; treat insert-track peaks as diagnostic context rather than automatic failure.",
+      "rationale": "FL Studio uses 32-bit floating point internally, but fixed-bit-depth render/output paths can clip above 0 dBFS.",
+      "tool_implications": [
+        "fl_review_mix",
+        "fl_gain_stage",
+        "fl_check_project_preflight"
+      ],
+      "safety_limits": [
+        "Prefer measured peak/readback data.",
+        "Do not assume peak level equals perceived loudness."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "source_or_bus_trim_before_master_trim",
+      "domain": "levels",
+      "recommendation": "When headroom is low, prefer trimming hot source tracks or relevant buses before treating Master fader reduction as the default fix.",
+      "rationale": "Source trims improve balance and reduce Master load without shrinking the whole mix indiscriminately.",
+      "tool_implications": [
+        "fl_gain_stage",
+        "fl_apply_mix_adjustment",
+        "fl_mixer"
+      ],
+      "safety_limits": [
+        "Apply one approved rollback-backed trim or grouped trim unit at a time."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "compression_depends_on_input_level",
+      "domain": "compression",
+      "recommendation": "When changing EQ, distortion, gain, or routing before a compressor, re-check compressor behavior because the input level changes its effective threshold response.",
+      "rationale": "The compression transcript identifies gain staging as critical because compressors depend heavily on input level.",
+      "tool_implications": [
+        "fl_apply_compression_intent",
+        "fl_get_track_level"
+      ],
+      "safety_limits": [
+        "Actual Fruity Limiter parameter writes must use existing calibrated compression mappings."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "low_end_mono_compatibility",
+      "domain": "stereo",
+      "recommendation": "Flag wide or phase-risky main low-end elements as a compatibility concern, especially for club, car, phone, laptop, and mono playback.",
+      "rationale": "The stereo transcript explains that low-frequency playback systems often sum bass to mono and out-of-phase side bass can cancel.",
+      "tool_implications": [
+        "fl_project_health_overview",
+        "fl_review_low_end_stereo"
+      ],
+      "safety_limits": [
+        "Phrase as a strong recommendation, not an absolute rule.",
+        "Do not apply mid-side EQ or stereo changes unless a safe wrapper and readback path exist."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "send_effects_for_shared_space",
+      "domain": "routing",
+      "recommendation": "Use shared send channels for common reverb/delay spaces across related tracks, with wet-only processing on the send.",
+      "rationale": "The routing, reverb, and delay transcripts describe wet-only sends as a way to control ambience from a fader and reduce duplicate plugin use.",
+      "tool_implications": [
+        "fl_review_routing",
+        "fl_apply_bus_layout",
+        "fl_apply_routing_cleanup"
+      ],
+      "safety_limits": [
+        "Creating plugins remains manual.",
+        "Routing writes must use one named rollback unit."
+      ],
+      "confidence_level": "docs_confirmed"
+    },
+    {
+      "id": "reverb_delay_busy_mix_control",
+      "domain": "space_effects",
+      "recommendation": "In busy sections, prefer lower ambience levels, filtered/diffused delays, or automation throws instead of constant large reverb.",
+      "rationale": "Image-Line guidance says reverb can create space but can also become muddy in a busy mix; delay can imply space with less wash.",
+      "tool_implications": [
+        "fl_apply_reverb_intent",
+        "fl_apply_delay_intent"
+      ],
+      "safety_limits": [
+        "Automation creation remains limited by current API support.",
+        "Do not write unverified Fruity Delay 3 or Reeverb parameter values."
+      ],
+      "confidence_level": "docs_confirmed"
+    }
+  ],
+  "affected_api": "N/A",
+  "observation": "N/A",
+  "tested_values": "N/A",
+  "context": "N/A",
+  "result": "N/A",
+  "open_questions": "N/A",
+  "next_recommended_action": "N/A"
+}

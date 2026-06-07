@@ -480,17 +480,17 @@ def register(mcp: FastMCP) -> None:
         limit: Annotated[
             int,
             Field(ge=1, le=50, description="Number of recent changes to summarize."),
-        ] = 10
+        ] = 10,
     ) -> dict:
         """Return a human-readable markdown summary table of recent changes to easily see rollback IDs.
-        
+
         Safety: Read-Only.
         """
         history = safety.change_history(limit, include_payload=False).get("history", [])
-        
+
         if not history:
             return {"summary": "No changes recorded."}
-            
+
         markdown = "| ID | Time | Tool | Unit | Batch? |\n|---|---|---|---|---|\n"
         for h in history:
             ts = h.get("ts", 0)
@@ -498,12 +498,12 @@ def register(mcp: FastMCP) -> None:
             tool = h.get("tool", "?")
             unit = h.get("rollback_unit", "")
             is_batch = h.get("is_group", False)
-            
+
             markdown += f"| `{id_}` | {ts} | {tool} | {unit} | {'Yes' if is_batch else 'No'} |\n"
-            
+
         return {
             "markdown_table": markdown,
-            "note": "Use fl_rollback_change(change_id) to undo the most recent valid change."
+            "note": "Use fl_rollback_change(change_id) to undo the most recent valid change.",
         }
 
     @mcp.tool(
