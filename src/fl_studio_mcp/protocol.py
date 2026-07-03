@@ -29,8 +29,6 @@ import os
 import platform
 import secrets
 import string
-from typing import Tuple
-
 
 # Bump when the wire format changes incompatibly. Server and FL refuse to
 # talk to a mismatched peer.
@@ -155,6 +153,24 @@ CMD_ARRANGE_ADD_MARKER = "arrange_add_marker"          # addAutoTimeMarker at a 
 # Note-bridge hardening -- ensure the Piano roll is open before a note-write
 CMD_ENSURE_PIANO_ROLL = "ensure_piano_roll"            # ui.showWindow(widPianoRoll)
 
+# Playlist track control (Tier 1) -- names/mute/solo/color (1-based track index)
+CMD_PLAYLIST_TRACK_LIST = "playlist_track_list"        # paginated: name/mute/solo/selected
+CMD_PLAYLIST_GET_TRACK = "playlist_get_track"          # one track's state (for safe_write snapshot)
+CMD_PLAYLIST_MUTE_TRACK = "playlist_mute_track"        # muteTrack (state-aware)
+CMD_PLAYLIST_SOLO_TRACK = "playlist_solo_track"        # soloTrack (state-aware)
+CMD_PLAYLIST_SET_NAME = "playlist_set_track_name"      # setTrackName
+CMD_PLAYLIST_SET_COLOR = "playlist_set_track_color"    # setTrackColor
+
+# Arrangement read (Tier 1) -- selection range + markers + current time
+CMD_ARRANGE_GET_SELECTION = "arrange_get_selection"    # selectionStart/End/IsActive + currentTime
+CMD_ARRANGE_GET_MARKERS = "arrange_get_markers"        # scan getMarkerName (capped)
+
+# Channel step-sequencer grid (Tier 2) -- draw drum patterns without the piano roll
+CMD_CHANNEL_GET_GRID = "channel_get_grid"              # getGridBit per step
+CMD_CHANNEL_GET_GRID_BIT = "channel_get_grid_bit"      # one bit (for safe_write snapshot)
+CMD_CHANNEL_SET_GRID_BIT = "channel_set_grid_bit"      # setGridBit(channel, step, value)
+CMD_CHANNEL_CLEAR_GRID = "channel_clear_grid"          # setGridBit 0 across steps
+
 
 # ---------------------------------------------------------------------------
 # SysEx wire format
@@ -201,7 +217,7 @@ def encode_message(direction: int, request_id: str, payload: dict) -> bytes:
     return bytes(out)
 
 
-def decode_message(data) -> Tuple[int, str, dict] | None:
+def decode_message(data) -> tuple[int, str, dict] | None:
     """Decode a SysEx payload. Returns None if not one of ours.
 
     ``data`` is the bytes between F0 and F7 (mido strips the framing).

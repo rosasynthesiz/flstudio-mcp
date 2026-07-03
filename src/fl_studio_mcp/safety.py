@@ -9,20 +9,22 @@ returns before+after so the caller (and a human) can see exactly what changed.
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from collections import deque
 from pathlib import Path
 
 from .protocol import (
-    CMD_MIXER_GET_TRACK,
     CMD_CHANNEL_GET,
-    CMD_MIXER_LIST_TRACKS,
+    CMD_CHANNEL_GET_GRID_BIT,
     CMD_CHANNEL_LIST,
-    CMD_PLUGIN_GET_PARAM,
     CMD_MIXER_GET_ROUTING,
+    CMD_MIXER_GET_TRACK,
+    CMD_MIXER_LIST_TRACKS,
+    CMD_PLAYLIST_GET_TRACK,
+    CMD_PLUGIN_GET_PARAM,
 )
-
 
 _DIR = Path.home() / ".flstudio-mcp"
 _PATH = _DIR / "changelog.jsonl"
@@ -50,9 +52,13 @@ class ChangeLog:
     def _persist(self) -> None:
         try:
             _DIR.mkdir(parents=True, exist_ok=True)
-            _PATH.write_text(
-                "".join(json.dumps(e) + "\n" for e in self._dq), encoding="utf-8"
-            )
+            # Atomic write: serialise to a temp file in the same dir, then
+            # os.replace() over the target. Prevents a truncated/corrupt log if
+            # the process dies mid-write.
+            payload = "".join(json.dumps(e) + "\n" for e in self._dq)
+            tmp = _PATH.with_suffix(_PATH.suffix + ".tmp")
+            tmp.write_text(payload, encoding="utf-8")
+            os.replace(tmp, _PATH)
         except Exception:
             pass
 
@@ -112,6 +118,11 @@ def take_snapshot(bridge, scope):
         info = bridge.call(CMD_MIXER_GET_ROUTING, {"track": src})
         enabled = any(d.get("dst") == dst for d in info.get("routes_to", []))
         return {"src": src, "dst": dst, "enabled": enabled}
+    if kind == "playlist_track":
+        return bridge.call(CMD_PLAYLIST_GET_TRACK, {"track": int(arg)})
+    if kind == "grid_bit":
+        ch, idx = (int(x) for x in arg.split(":"))
+        return bridge.call(CMD_CHANNEL_GET_GRID_BIT, {"channel": ch, "index": idx})
     if kind == "mixer_all":
         from .connection import fetch_all_pages
         return fetch_all_pages(bridge, CMD_MIXER_LIST_TRACKS, "tracks")

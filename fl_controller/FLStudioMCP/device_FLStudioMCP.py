@@ -290,7 +290,7 @@ def _h_ping(params):
     return {
         "fl_version": _fl_version,
         "protocol_version": PROTOCOL_VERSION,
-        "build": "color-v14",   # reload marker -- bump to verify reloads take
+        "build": "xplat-v15",   # reload marker -- bump to verify reloads take
         "ts": time.time(),
     }
 
@@ -950,6 +950,42 @@ def _h_pattern_list(p):
     return _paginate(patterns.patternCount(), p.get("start", 0), entry, "patterns")
 
 
+def _h_pattern_select(p):
+    """Select (jump to) a pattern by its 1-based number. The note bridge then
+    writes into THIS pattern."""
+    pn = int(p["pattern"])
+    try:
+        patterns.jumpToPattern(pn)
+    except Exception as e:
+        return {"ok": False, "error": "jumpToPattern: %s" % e}
+    return {"ok": True, "pattern": pn, "name": patterns.getPatternName(pn),
+            "selected": patterns.patternNumber()}
+
+
+def _h_pattern_rename(p):
+    """Rename a pattern by its 1-based number."""
+    pn = int(p["pattern"])
+    name = str(p.get("name", ""))
+    try:
+        patterns.setPatternName(pn, name)
+    except Exception as e:
+        return {"ok": False, "error": "setPatternName: %s" % e}
+    return {"ok": True, "pattern": pn, "name": patterns.getPatternName(pn)}
+
+
+def _h_pattern_get_length(p):
+    """Pattern length. FL's getPatternLength returns beats; also report bars
+    (assuming 4/4). Raw value included so the server can re-derive if needed."""
+    pn = int(p["pattern"])
+    try:
+        raw = patterns.getPatternLength(pn)
+    except Exception as e:
+        return {"ok": False, "error": "getPatternLength: %s" % e}
+    return {"ok": True, "pattern": pn, "length_beats": raw,
+            "length_bars": (raw / 4.0) if isinstance(raw, (int, float)) else None,
+            "raw": raw}
+
+
 def _h_arrange_new_pattern(p):
     """Find the next empty pattern (or count+1), select it, name it. Selecting
     it is what lets the note bridge write INTO this pattern next."""
@@ -1054,6 +1090,150 @@ def _h_arrange_add_marker(p):
         return {"ok": False, "error": "addAutoTimeMarker: %s" % e}
 
 
+# -- Playlist track control (Tier 1): names / mute / solo / color ------------
+# Playlist tracks are 1-based (1..trackCount). muteTrack/soloTrack TOGGLE, so
+# state-aware handlers read first and only toggle on a mismatch.
+def _h_playlist_track_list(p):
+    n = playlist.trackCount()
+
+    def entry(i):
+        t = i + 1
+        name, cut = _truncate_name(playlist.getTrackName(t))
+        e = {"track": t, "name": name,
+             "muted": bool(playlist.isTrackMuted(t)),
+             "solo": bool(playlist.isTrackSolo(t))}
+        if cut:
+            e["trunc"] = True
+        return e
+    return _paginate(n, p.get("start", 0), entry, "tracks")
+
+
+def _h_playlist_get_track(p):
+    """One playlist track's state -- used as the safe_write snapshot source."""
+    t = int(p["track"])
+    return {"track": t, "name": playlist.getTrackName(t),
+            "muted": bool(playlist.isTrackMuted(t)),
+            "solo": bool(playlist.isTrackSolo(t)),
+            "color": playlist.getTrackColor(t)}
+
+
+def _h_playlist_mute_track(p):
+    t = int(p["track"])
+    state = p.get("state", None)
+    cur = bool(playlist.isTrackMuted(t))
+    if state is None or bool(state) != cur:
+        playlist.muteTrack(t)
+    return {"ok": True, "track": t, "muted": bool(playlist.isTrackMuted(t))}
+
+
+def _h_playlist_solo_track(p):
+    t = int(p["track"])
+    state = p.get("state", None)
+    cur = bool(playlist.isTrackSolo(t))
+    if state is None or bool(state) != cur:
+        playlist.soloTrack(t)
+    return {"ok": True, "track": t, "solo": bool(playlist.isTrackSolo(t))}
+
+
+def _h_playlist_set_track_name(p):
+    t = int(p["track"])
+    name = str(p.get("name", ""))
+    try:
+        playlist.setTrackName(t, name)
+    except Exception as e:
+        return {"ok": False, "error": "setTrackName: %s" % e}
+    return {"ok": True, "track": t, "name": playlist.getTrackName(t)}
+
+
+def _h_playlist_set_track_color(p):
+    t = int(p["track"])
+    color = int(p.get("color", 0))
+    try:
+        playlist.setTrackColor(t, color)
+    except Exception as e:
+        return {"ok": False, "error": "setTrackColor: %s" % e}
+    return {"ok": True, "track": t, "color": playlist.getTrackColor(t)}
+
+
+# -- Arrangement read (Tier 1): selection + markers + current time -----------
+def _h_arrange_get_selection(p):
+    if arrangement is None:
+        return {"ok": False, "error": "arrangement module not available"}
+
+    def _safe(fn):
+        try:
+            return fn()
+        except Exception:
+            return None
+    return {"ok": True,
+            "active": _safe(arrangement.selectionIsActive),
+            "start": _safe(arrangement.selectionStart),
+            "end": _safe(arrangement.selectionEnd),
+            "current_time": _safe(lambda: arrangement.currentTime(0))}
+
+
+def _h_arrange_get_markers(p):
+    if arrangement is None:
+        return {"ok": False, "error": "arrangement module not available"}
+    cap = int(p.get("cap", 64))
+    markers = []
+    for i in range(cap):
+        try:
+            nm = arrangement.getMarkerName(i)
+        except Exception:
+            break
+        if not nm:
+            break
+        markers.append({"index": i, "name": nm})
+    return {"ok": True, "markers": markers, "count": len(markers)}
+
+
+# -- Channel step-sequencer grid (Tier 2) ------------------------------------
+def _h_channel_get_grid(p):
+    ch = int(p["channel"])
+    steps = int(p.get("steps", 16))
+    bits = []
+    for i in range(steps):
+        try:
+            bits.append(1 if channels.getGridBit(ch, i) else 0)
+        except Exception:
+            break
+    return {"ok": True, "channel": ch, "steps": len(bits), "bits": bits}
+
+
+def _h_channel_get_grid_bit(p):
+    """One grid bit -- used as the safe_write snapshot source."""
+    ch = int(p["channel"])
+    idx = int(p["index"])
+    return {"channel": ch, "index": idx,
+            "value": 1 if channels.getGridBit(ch, idx) else 0}
+
+
+def _h_channel_set_grid_bit(p):
+    ch = int(p["channel"])
+    idx = int(p["index"])
+    val = 1 if p.get("value", 1) else 0
+    try:
+        channels.setGridBit(ch, idx, val)
+    except Exception as e:
+        return {"ok": False, "error": "setGridBit: %s" % e}
+    return {"ok": True, "channel": ch, "index": idx,
+            "value": 1 if channels.getGridBit(ch, idx) else 0}
+
+
+def _h_channel_clear_grid(p):
+    ch = int(p["channel"])
+    steps = int(p.get("steps", 16))
+    n = 0
+    for i in range(steps):
+        try:
+            channels.setGridBit(ch, i, 0)
+            n += 1
+        except Exception:
+            break
+    return {"ok": True, "channel": ch, "cleared": n}
+
+
 _HANDLERS = {
     "ping": _h_ping,
     "get_tempo": _h_get_tempo,
@@ -1100,4 +1280,19 @@ _HANDLERS = {
     "channel_select": _h_channel_select,
     "ensure_piano_roll": _h_ensure_piano_roll,
     "pattern_list": _h_pattern_list,
+    "pattern_select": _h_pattern_select,
+    "pattern_rename": _h_pattern_rename,
+    "pattern_get_length": _h_pattern_get_length,
+    "playlist_track_list": _h_playlist_track_list,
+    "playlist_get_track": _h_playlist_get_track,
+    "playlist_mute_track": _h_playlist_mute_track,
+    "playlist_solo_track": _h_playlist_solo_track,
+    "playlist_set_track_name": _h_playlist_set_track_name,
+    "playlist_set_track_color": _h_playlist_set_track_color,
+    "arrange_get_selection": _h_arrange_get_selection,
+    "arrange_get_markers": _h_arrange_get_markers,
+    "channel_get_grid": _h_channel_get_grid,
+    "channel_get_grid_bit": _h_channel_get_grid_bit,
+    "channel_set_grid_bit": _h_channel_set_grid_bit,
+    "channel_clear_grid": _h_channel_clear_grid,
 }
