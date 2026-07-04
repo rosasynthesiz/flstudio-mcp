@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased -- tool-surface expansion (fl_* tools)
+
+New tools (no changes to existing tool signatures). Each is read-only or routes
+writes through the existing snapshot -> write -> readback -> rollback safety
+layer. The FL controller gains matching thin handlers (build marker `xplat-v15`).
+
+- **Capabilities**: `fl_capabilities` + `fl://capabilities` resource -- reports
+  what is automated vs. manual per OS/transport, and the FL API limits.
+- **Plugin / generic VST control**:
+  - `fl_plugin_get_params` / `fl_plugin_set_param` now accept `slot=-1` to
+    address a channel-rack **generator** (Serum/Vital/etc.), not just mixer
+    effects.
+  - `fl_plugin_find_params` -- search a plugin's parameters by name (for big
+    synths with hundreds of params).
+  - `fl_plugin_set_params` -- set several params as ONE reversible change.
+  - `fl_plugin_overview` -- role-grouped params + a controllability tier
+    (full / partial / opaque).
+  - `fl_plugin_calibrate_param` -- sweep a param and learn its real-unit curve
+    (cached under `~/.flstudio-mcp/`); snapshots + restores the param.
+  - `fl_plugin_set_param_value` -- set a param to a musical target (e.g.
+    "cutoff = 2 kHz"); degrades to normalised control when a plugin is opaque.
+  - `fl_plugin_intent` -- semantic moves (brighter/darker/more_attack/wider/...)
+    mapped to the right knob via role detection.
+- **Patterns**: `fl_pattern_list` / `fl_pattern_select` / `fl_pattern_rename` /
+  `fl_pattern_get_length`.
+- **Playlist**: `fl_playlist_tracks` + mute/solo/rename/color (reversible).
+- **Arrangement (read)**: `fl_arrangement_selection`, `fl_arrangement_markers`.
+- **Channel step grid**: `fl_channel_get_grid`, `fl_channel_set_step`,
+  `fl_channel_set_steps`, `fl_channel_clear_grid` (reversible).
+- **Plugin loading**: `fl_load_plugin` is capability-aware -- FL's API can't
+  instantiate plugins, so it explains why + the reliable alternatives rather
+  than performing fragile UI automation.
+
+Windows behavior and the existing tool contract are unchanged.
+
 ## v0.2.0 -- MIDI SysEx transport
 
 **Breaking change**: the transport between the MCP server and the FL

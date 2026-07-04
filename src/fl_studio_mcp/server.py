@@ -28,20 +28,24 @@ from .protocol import port_from_fl_name, port_to_fl_name
 from .tools import arrange as arrange_tools
 from .tools import audio as audio_tools
 from .tools import bulk as bulk_tools
+from .tools import capabilities as capabilities_tools
 from .tools import chains as chains_tools
 from .tools import color as color_tools
 from .tools import compose as compose_tools
 from .tools import export as export_tools
+from .tools import grid as grid_tools
+from .tools import loader as loader_tools
 from .tools import mix_doctor as mix_doctor_tools
 from .tools import mixing as mixing_tools
 from .tools import phase1 as phase1_tools
 from .tools import pianoroll as pianoroll_tools
+from .tools import playlist as playlist_tools
 from .tools import plugin as plugin_tools
 from .tools import presets as presets_tools
 from .tools import resources as resource_defs
 from .tools import routing as routing_tools
 from .tools import transport as transport_tools
-
+from .tools import vst as vst_tools
 
 logger = logging.getLogger("fl_studio_mcp")
 
@@ -100,6 +104,11 @@ def build_server() -> FastMCP:
     export_tools.register(mcp)      # MIDI export: arrangement spec -> type-1 .mid on disk
     presets_tools.register(mcp)     # Preset suggester: read preset names from disk
     mix_doctor_tools.register(mcp)  # Mix Doctor: diagnose whole mix + gated apply-fixes
+    capabilities_tools.register(mcp)  # Capability introspection: automated vs manual per OS
+    vst_tools.register(mcp)         # Generic deep VST/AU control: overview, calibrate, unit-set
+    playlist_tools.register(mcp)    # Playlist track control + arrangement read (Tier 1)
+    grid_tools.register(mcp)        # Channel step-sequencer grid (Tier 2)
+    loader_tools.register(mcp)      # Plugin loading: capability-aware (explains FL API limit)
     # Later tool packs register here as they ship:
     #   pattern_tools.register(mcp)
     return mcp
