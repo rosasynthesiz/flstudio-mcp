@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import os
 
-PIANO_ROLL_SCRIPTS_DIR = os.path.expanduser(
-    "~/Documents/Image-Line/FL Studio/Settings/Piano roll scripts"
-)
+from .paths import find_piano_roll_scripts_dir
+
+# Resolved at import: env override -> discovered Settings/Piano roll scripts ->
+# standard path. Cross-platform (Windows + macOS share the layout).
+PIANO_ROLL_SCRIPTS_DIR = find_piano_roll_scripts_dir()
 APPLY_SCRIPT_NAME = "MCP_Apply.pyscript"
 
 _DEFAULT_VELOCITY = 100 / 127.0
