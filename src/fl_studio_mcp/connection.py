@@ -10,13 +10,16 @@ the request id. A background callback dispatches incoming SysEx messages.
 
 from __future__ import annotations
 
+import atexit
+import contextlib
 import json
 import logging
 import os
 import socket
+import sys
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 try:
     import mido
@@ -34,7 +37,6 @@ from .protocol import (
     DIR_RESPONSE,
     HEARTBEAT_STALE_SECONDS,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +74,7 @@ class _Slot:
 
     def __init__(self) -> None:
         self.event = threading.Event()
-        self.payload: Optional[dict] = None
+        self.payload: dict | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -87,13 +89,28 @@ def _ensure_mido() -> None:
         )
 
 
-def _find_port(pattern: str, names: list[str]) -> Optional[str]:
+def _find_port(pattern: str, names: list[str]) -> str | None:
     """Case-insensitive substring match. Returns the first match or None."""
     needle = pattern.lower()
     for name in names:
         if needle in name.lower():
             return name
     return None
+
+
+def _virtual_ports_enabled() -> bool:
+    """Whether to self-create virtual MIDI ports when the named ports are absent.
+
+    ``FLSTUDIO_MCP_VIRTUAL_PORTS`` = ``1``/``true``/``on`` forces on, ``0``/
+    ``false``/``off`` forces off. Default (``auto``): on for macOS/Linux, whose
+    CoreMIDI/ALSA backends support virtual ports; off on Windows (MME can't).
+    """
+    val = os.environ.get("FLSTUDIO_MCP_VIRTUAL_PORTS", "auto").strip().lower()
+    if val in ("1", "true", "on", "yes"):
+        return True
+    if val in ("0", "false", "off", "no"):
+        return False
+    return sys.platform != "win32"
 
 
 def list_ports() -> dict:
@@ -114,8 +131,8 @@ class FLBridge:
 
     def __init__(
         self,
-        port_to_fl: Optional[str] = None,
-        port_from_fl: Optional[str] = None,
+        port_to_fl: str | None = None,
+        port_from_fl: str | None = None,
         *,
         default_timeout: float = DEFAULT_TIMEOUT_SECONDS,
     ):
@@ -125,13 +142,14 @@ class FLBridge:
         self.default_timeout = default_timeout
 
         self._lock = threading.Lock()
-        self._pending: Dict[str, _Slot] = {}
+        self._pending: dict[str, _Slot] = {}
         self._last_heartbeat: float = 0.0
-        self._heartbeat_payload: Optional[dict] = None
+        self._heartbeat_payload: dict | None = None
 
         self._out_port = None
         self._in_port = None
         self._opened = False
+        self._virtual = False
 
     # -- lifecycle -----------------------------------------------------------
 
@@ -142,6 +160,15 @@ class FLBridge:
         in_names = mido.get_input_names()
         out_match = _find_port(self._port_to_fl_pattern, out_names)
         in_match = _find_port(self._port_from_fl_pattern, in_names)
+
+        # macOS/Linux can create CoreMIDI/ALSA *virtual* ports on demand, so the
+        # user doesn't have to pre-create IAC buses. If the named ports don't
+        # already exist and virtual mode applies, create them here. (Windows'
+        # MME backend can't create virtual ports -- loopMIDI is still required.)
+        if (out_match is None or in_match is None) and _virtual_ports_enabled():
+            self._open_virtual()
+            return
+
         if out_match is None:
             raise FLPortMissing(
                 "No OUTPUT MIDI port matching %r. Available: %s. "
@@ -160,25 +187,53 @@ class FLBridge:
         self._out_port = mido.open_output(out_match)
         self._in_port = mido.open_input(in_match, callback=self._on_midi)
         self._opened = True
+        self._virtual = False
+        atexit.register(self.close)
+
+    def _open_virtual(self) -> None:
+        """Create the two bridge ports as virtual CoreMIDI/ALSA ports.
+
+        Our virtual OUTPUT (``port_to_fl``) appears to FL as an INPUT it can
+        enable; our virtual INPUT (``port_from_fl``) appears to FL as an OUTPUT.
+        This matches the protocol and removes the manual IAC-setup step on macOS.
+        """
+        to_fl = self._port_to_fl_pattern
+        from_fl = self._port_from_fl_pattern
+        logger.info("Creating VIRTUAL MIDI ports: out=%r, in=%r", to_fl, from_fl)
+        try:
+            self._out_port = mido.open_output(to_fl, virtual=True)
+            self._in_port = mido.open_input(from_fl, virtual=True, callback=self._on_midi)
+        except Exception as e:
+            raise FLPortMissing(
+                "Could not create virtual MIDI ports (%s). On macOS this should "
+                "work out of the box; on Windows use loopMIDI and set the port "
+                "names. Ports wanted: %r / %r." % (e, to_fl, from_fl)
+            ) from e
+        self._opened = True
+        self._virtual = True
+        atexit.register(self.close)
 
     def close(self) -> None:
         if self._in_port is not None:
-            try:
+            with contextlib.suppress(Exception):  # pragma: no cover
                 self._in_port.close()
-            except Exception:  # pragma: no cover
-                pass
         if self._out_port is not None:
-            try:
+            with contextlib.suppress(Exception):  # pragma: no cover
                 self._out_port.close()
-            except Exception:  # pragma: no cover
-                pass
         self._in_port = None
         self._out_port = None
         self._opened = False
+        self._virtual = False
+        with contextlib.suppress(Exception):  # pragma: no cover
+            atexit.unregister(self.close)
+
+    def __del__(self):  # pragma: no cover - best-effort cleanup on GC
+        with contextlib.suppress(Exception):
+            self.close()
 
     # -- health --------------------------------------------------------------
 
-    def heartbeat_age(self) -> Optional[float]:
+    def heartbeat_age(self) -> float | None:
         if self._last_heartbeat == 0.0:
             return None
         return max(0.0, time.monotonic() - self._last_heartbeat)
@@ -218,15 +273,16 @@ class FLBridge:
     def call(
         self,
         command: str,
-        params: Optional[dict] = None,
+        params: dict | None = None,
         *,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> Any:
         self.check_alive()
 
         request_id = protocol.new_request_id()
         request = protocol.make_request(command, params)
         encoded = protocol.encode_message(DIR_REQUEST, request_id, request)
+        eff_timeout = timeout or self.default_timeout
 
         slot = _Slot()
         with self._lock:
@@ -235,10 +291,10 @@ class FLBridge:
         try:
             msg = mido.Message("sysex", data=encoded)
             self._out_port.send(msg)
-            if not slot.event.wait(timeout or self.default_timeout):
+            if not slot.event.wait(eff_timeout):
                 raise FLTimeout(
                     "FL Studio did not respond to %r within %.1fs."
-                    % (command, timeout or self.default_timeout)
+                    % (command, eff_timeout)
                 )
             resp = slot.payload or {}
             if resp.get("ok"):
@@ -320,8 +376,8 @@ class TCPBridge:
 
     def __init__(
         self,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
+        host: str | None = None,
+        port: int | None = None,
         *,
         default_timeout: float = DEFAULT_TIMEOUT_SECONDS,
     ):
@@ -333,21 +389,20 @@ class TCPBridge:
     # -- transport -----------------------------------------------------------
 
     def _rpc(self, req: dict, timeout: float) -> dict:
-        with self._lock:
-            with socket.create_connection((self.host, self.port), timeout=timeout) as s:
-                s.settimeout(timeout)
-                s.sendall((json.dumps(req) + "\n").encode("utf-8"))
-                buf = b""
-                while b"\n" not in buf:
-                    chunk = s.recv(4096)
-                    if not chunk:
-                        break
-                    buf += chunk
+        with self._lock, socket.create_connection((self.host, self.port), timeout=timeout) as s:
+            s.settimeout(timeout)
+            s.sendall((json.dumps(req) + "\n").encode("utf-8"))
+            buf = b""
+            while b"\n" not in buf:
+                chunk = s.recv(4096)
+                if not chunk:
+                    break
+                buf += chunk
         if not buf:
             raise FLBridgeError("daemon closed the connection without replying")
         return json.loads(buf.split(b"\n", 1)[0].decode("utf-8"))
 
-    def _daemon_unreachable(self, exc: Exception) -> "FLPortMissing":
+    def _daemon_unreachable(self, exc: Exception) -> FLPortMissing:
         return FLPortMissing(
             "Cannot reach the fl-studio-mcp daemon at %s:%d. Start it (run "
             "`fl-studio-mcp-daemon` in a normal terminal / on login) so MIDI "
@@ -357,7 +412,7 @@ class TCPBridge:
 
     # -- health --------------------------------------------------------------
 
-    def heartbeat_age(self) -> Optional[float]:
+    def heartbeat_age(self) -> float | None:
         try:
             resp = self._rpc({"op": "health"}, timeout=5.0)
         except OSError:
@@ -377,9 +432,9 @@ class TCPBridge:
     def call(
         self,
         command: str,
-        params: Optional[dict] = None,
+        params: dict | None = None,
         *,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> Any:
         t = timeout or self.default_timeout
         try:
@@ -388,7 +443,7 @@ class TCPBridge:
                 timeout=t + 5.0,
             )
         except OSError as e:
-            raise self._daemon_unreachable(e)
+            raise self._daemon_unreachable(e) from e
         if resp.get("ok"):
             return resp.get("data")
         exc = resp.get("exc")
@@ -414,7 +469,7 @@ class TCPBridge:
                 timeout=30.0,
             )
         except OSError as e:
-            raise self._daemon_unreachable(e)
+            raise self._daemon_unreachable(e) from e
 
     def open(self) -> None:  # pragma: no cover - parity with FLBridge
         return None
@@ -424,10 +479,10 @@ class TCPBridge:
 
 
 # Module-level singleton.
-_bridge: Optional["FLBridge | TCPBridge"] = None
+_bridge: FLBridge | TCPBridge | None = None
 
 
-def get_bridge() -> "FLBridge | TCPBridge":
+def get_bridge() -> FLBridge | TCPBridge:
     """Return the process-wide bridge.
 
     ``FLSTUDIO_MCP_TRANSPORT=tcp`` selects the daemon-backed :class:`TCPBridge`
