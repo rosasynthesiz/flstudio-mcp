@@ -104,15 +104,30 @@ def force_focus(hwnd):
     return _u.GetForegroundWindow() == hwnd
 
 
+def _send_ctrl_alt_y():
+    """Ctrl+Alt+Y by virtual-key code, independent of the keyboard layout.
+
+    pyautogui resolves 'y' with VkKeyScanA against the current layout. Under a
+    layout without a Latin 'y' (Russian, Greek, ...) that returns -1, and
+    pyautogui presses VK 0xFF instead of Y, so FL never sees the shortcut."""
+    import ctypes
+
+    u = ctypes.windll.user32
+    VK_CONTROL, VK_MENU, VK_Y, KEYUP = 0x11, 0x12, 0x59, 0x02
+    for vk in (VK_CONTROL, VK_MENU, VK_Y):
+        u.keybd_event(vk, u.MapVirtualKeyW(vk, 0), 0, 0)
+        time.sleep(0.02)
+    for vk in (VK_Y, VK_MENU, VK_CONTROL):
+        u.keybd_event(vk, u.MapVirtualKeyW(vk, 0), KEYUP, 0)
+        time.sleep(0.02)
+
+
 def _trigger_windows(settle=0.35):
     """Focus FL Studio on Windows and send Ctrl+Alt+Y."""
-    import pyautogui
-
-    pyautogui.FAILSAFE = False
     hwnd = find_fl_hwnd()
     focused = force_focus(hwnd) if hwnd else False
     time.sleep(settle)
-    pyautogui.hotkey("ctrl", "alt", "y")
+    _send_ctrl_alt_y()
     return {
         "platform": "windows",
         "fl_found": bool(hwnd),
