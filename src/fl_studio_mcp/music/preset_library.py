@@ -14,6 +14,8 @@ import os
 import re
 from pathlib import Path
 
+from ..utils.paths import documents_dir, image_line_dir
+
 _ENV_FL = "FLSTUDIO_MCP_PRESETS"
 _ENV_SERUM = "FLSTUDIO_MCP_SERUM_PRESETS"
 
@@ -37,8 +39,7 @@ _SYN = {
 
 
 def _fl_studio_dirs():
-    home = Path.home()
-    for r in (home / "Documents" / "Image-Line", home / "Image-Line"):
+    for r in (image_line_dir(), Path.home() / "Image-Line"):
         if r.is_dir():
             for fl in sorted(r.glob("FL Studio*"), reverse=True):
                 yield fl
@@ -59,7 +60,7 @@ def find_serum_presets():
     env = os.environ.get(_ENV_SERUM)
     if env and os.path.isdir(env):
         return env
-    xfer = Path.home() / "Documents" / "Xfer"
+    xfer = documents_dir() / "Xfer"
     for name in ("Serum 2 Presets", "Serum2 Presets", "Serum Presets"):
         p = xfer / name
         if p.is_dir():

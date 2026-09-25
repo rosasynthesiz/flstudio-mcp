@@ -13,6 +13,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from ..utils.paths import image_line_dir
+
 _ENV = "FLSTUDIO_MCP_PLUGIN_DB"     # override: full path to the 'Installed' folder
 
 # Rough keyword buckets for EFFECTS, a convenience for chain suggestions. Fuzzy
@@ -40,8 +42,7 @@ def find_plugin_db():
     env = os.environ.get(_ENV)
     if env and os.path.isdir(env):
         return env
-    home = Path.home()
-    for r in (home / "Documents" / "Image-Line", home / "Image-Line"):
+    for r in (image_line_dir(), Path.home() / "Image-Line"):
         if not r.is_dir():
             continue
         for fl in sorted(r.glob("FL Studio*"), reverse=True):

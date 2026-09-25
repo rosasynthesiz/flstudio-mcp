@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import os
 
-PIANO_ROLL_SCRIPTS_DIR = os.path.expanduser(
-    "~/Documents/Image-Line/FL Studio/Settings/Piano roll scripts"
+from .utils.paths import image_line_dir
+
+PIANO_ROLL_SCRIPTS_DIR = os.environ.get("FLSTUDIO_MCP_PIANO_ROLL_SCRIPTS") or str(
+    image_line_dir() / "FL Studio" / "Settings" / "Piano roll scripts"
 )
 APPLY_SCRIPT_NAME = "MCP_Apply.pyscript"
 
