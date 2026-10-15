@@ -108,6 +108,8 @@ CMD_CHANNEL_SET_VOLUME = "channel_set_volume"
 CMD_CHANNEL_SET_PAN = "channel_set_pan"
 CMD_CHANNEL_SET_MUTE = "channel_set_mute"
 CMD_CHANNEL_SET_SOLO = "channel_set_solo"
+CMD_CHANNEL_GET_GRID = "channel_get_grid"    # step-sequencer steps of the current pattern
+CMD_CHANNEL_SET_GRID = "channel_set_grid"
 CMD_CHANNEL_SELECT = "channel_select"
 
 # Patterns (Phase 3)

@@ -17,7 +17,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from fl_studio_mcp import protocol                       # noqa: E402
 from fl_studio_mcp.connection import get_bridge           # noqa: E402
 from fl_studio_mcp.music import limiter_curves as lc      # noqa: E402
 from fl_studio_mcp.server import build_server             # noqa: E402

@@ -31,6 +31,40 @@ cd "$REPO_ROOT"
 python3 -m pip install --upgrade pip >/dev/null
 python3 -m pip install -e .
 
+# Optional audio features, two questions. Preset FLMCP_EXTRAS to skip them:
+# all, none, or any of: audio accurate chords.
+echo
+if [[ -z "${FLMCP_EXTRAS:-}" ]]; then
+  FLMCP_EXTRAS="none"
+  echo "  Optional, you can re-run this installer later to add these."
+  echo "  1/2 Audio analysis, about 100 MB, no AI models:"
+  echo "      tempo and key detection, drums to MIDI, melody to MIDI (light),"
+  echo "      reference match."
+  read -r -p "  Install audio analysis? [y/N] " answer
+  [[ "$answer" =~ ^[Yy] ]] && FLMCP_EXTRAS="audio"
+  echo "  2/2 AI audio to MIDI, about 650 MB, downloads AI models:"
+  echo "      accurate melody to MIDI (CREPE), chords to MIDI (Basic Pitch)."
+  read -r -p "  Install AI audio to MIDI? [y/N] " answer
+  [[ "$answer" =~ ^[Yy] ]] && FLMCP_EXTRAS="$FLMCP_EXTRAS accurate chords"
+fi
+[[ "$FLMCP_EXTRAS" == *all* ]] && FLMCP_EXTRAS="audio accurate chords"
+EXTRAS=()
+[[ "$FLMCP_EXTRAS" == *audio* || "$FLMCP_EXTRAS" == *accurate* ]] && EXTRAS+=("audio")
+[[ "$FLMCP_EXTRAS" == *accurate* ]] && EXTRAS+=("audio-accurate")
+[[ "$FLMCP_EXTRAS" == *chords* ]] && EXTRAS+=("audio-chords")
+if (( ${#EXTRAS[@]} )); then
+  joined="$(IFS=,; echo "${EXTRAS[*]}")"
+  echo "  Installing extras: $joined"
+  python3 -m pip install -e ".[$joined]" || echo "  WARNING: installing the extras failed. See output above."
+  if [[ "$FLMCP_EXTRAS" == *chords* ]]; then
+    # Skip Basic Pitch's TensorFlow/CoreML pins; we run its ONNX model.
+    python3 -m pip install --no-deps "basic-pitch==0.4.0"
+    python3 -c "from fl_studio_mcp.tools.audio import chords_available as c; print('  Chords to MIDI: ready' if c() else '  WARNING: chords to MIDI is not working, see output above')"
+  fi
+else
+  echo "  No optional audio features installed."
+fi
+
 echo
 echo "[3/4] Seeding the note-bridge pyscript (MCP_Apply)..."
 if ! python3 - <<'PYEOF'

@@ -1,0 +1,123 @@
+name: CI
+
+# FL Studio can't run here, so CI runs the repo's own checks that work without
+# it (tests/, which wraps scripts/test_*.py) on Windows and macOS, plus both
+# installers against a fake FL user data folder. All output is in each step's log.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install "ruff>=0.5"
+      # Real bugs only (undefined names, unused imports, syntax errors).
+      - run: >
+          ruff check src tests scripts/ci_packages.py scripts/test_*.py scripts/fake_fl.py
+          --select F,E9
+      - run: bash -n scripts/install_macos.sh
+
+  tests:
+    name: tests (${{ matrix.os }}, py${{ matrix.python }}${{ matrix.experimental && ', experimental' || '' }})
+    runs-on: ${{ matrix.os }}
+    # 3.14 is newer than the supported range; show what breaks without failing CI.
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        python: ["3.10", "3.11", "3.12", "3.13"]
+        experimental: [false]
+        include:
+          - { os: windows-latest, python: "3.14", experimental: true }
+          - { os: macos-latest, python: "3.14", experimental: true }
+          # Linux isn't supported yet; this shows what already works there.
+          - { os: ubuntu-latest, python: "3.12", experimental: true }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install with every extra
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,audio,audio-accurate,audio-chords]"
+          python -m pip install --no-deps "basic-pitch==0.4.0"
+      - name: Installed packages
+        run: python scripts/ci_packages.py
+      - name: No dependency conflicts (Basic Pitch's TensorFlow is skipped on purpose)
+        shell: bash
+        run: |
+          out="$(python -m pip check 2>&1 || true)"
+          echo "$out"
+          if echo "$out" | grep -v -i "^basic-pitch " | grep -v "No broken requirements" | grep -q .; then exit 1; fi
+      - name: Tests
+        run: python -m pytest
+
+  installer-windows:
+    # The installer picks its own Python (3.12, 3.11, 3.10 via the py launcher).
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Fake FL user data folder
+        shell: pwsh
+        run: |
+          $s = "$env:RUNNER_TEMP\FLData\FL Studio\Settings"
+          New-Item -ItemType Directory -Force "$s\Hardware" | Out-Null
+          "FL_SETTINGS=$s" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - name: Run installer (answer yes to audio to MIDI)
+        shell: cmd
+        env:
+          FLMCP_EXTRAS: all
+        run: scripts\install_windows.bat > install.log 2>&1 & type install.log
+      - name: Installed packages
+        run: .venv\Scripts\python scripts\ci_packages.py
+      - name: Check the install and the installed app
+        shell: pwsh
+        run: |
+          .venv\Scripts\python -m pip install -q "pytest>=8.0"
+          $env:FLMCP_INSTALL_LOG = "install.log"
+          $env:FLMCP_DAEMON_CMD = "cmd /c scripts\start_daemon.bat"
+          $env:FLMCP_SERVER_CMD = "$PWD\.venv\Scripts\fl-studio-mcp.exe"
+          .venv\Scripts\python -m pytest tests/test_installer.py "tests/test_offline.py::test_app"
+
+  installer-macos:
+    name: installer-macos (py${{ matrix.python }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Fake FL user data folder
+        run: mkdir -p "$HOME/Documents/Image-Line/FL Studio/Settings/Hardware"
+      - name: Run installer (answer yes to audio to MIDI)
+        env:
+          FLMCP_EXTRAS: all
+        run: ./scripts/install_macos.sh 2>&1 | tee install.log
+      - name: Installed packages
+        run: python3 scripts/ci_packages.py
+      - name: Check the install and the installed app
+        run: |
+          python3 -m pip install -q "pytest>=8.0"
+          FLMCP_INSTALL_LOG=install.log \
+          FLMCP_DAEMON_CMD="$(command -v fl-studio-mcp-daemon)" \
+          FLMCP_SERVER_CMD="$(command -v fl-studio-mcp)" \
+          python3 -m pytest tests/test_installer.py "tests/test_offline.py::test_app"
