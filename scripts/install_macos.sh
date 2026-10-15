@@ -31,6 +31,33 @@ cd "$REPO_ROOT"
 python3 -m pip install --upgrade pip >/dev/null
 python3 -m pip install -e .
 
+# Optional audio to MIDI. Preset FLMCP_EXTRAS=all or none to skip the question.
+echo
+if [[ -z "${FLMCP_EXTRAS:-}" ]]; then
+  echo "  Optional: audio to MIDI. Turns audio into MIDI notes (melodies and full"
+  echo "  chords) and detects tempo and key. About 650 MB. You can re-run this"
+  echo "  installer later to add it."
+  read -r -p "  Install audio to MIDI? [y/N] " answer
+  if [[ "$answer" =~ ^[Yy] ]]; then FLMCP_EXTRAS="all"; else FLMCP_EXTRAS="none"; fi
+fi
+[[ "$FLMCP_EXTRAS" == *all* ]] && FLMCP_EXTRAS="audio accurate chords"
+EXTRAS=()
+[[ "$FLMCP_EXTRAS" == *audio* || "$FLMCP_EXTRAS" == *accurate* ]] && EXTRAS+=("audio")
+[[ "$FLMCP_EXTRAS" == *accurate* ]] && EXTRAS+=("audio-accurate")
+[[ "$FLMCP_EXTRAS" == *chords* ]] && EXTRAS+=("audio-chords")
+if (( ${#EXTRAS[@]} )); then
+  joined="$(IFS=,; echo "${EXTRAS[*]}")"
+  echo "  Installing extras: $joined"
+  python3 -m pip install -e ".[$joined]" || echo "  WARNING: installing the extras failed. See output above."
+  if [[ "$FLMCP_EXTRAS" == *chords* ]]; then
+    # Skip Basic Pitch's TensorFlow/CoreML pins; we run its ONNX model.
+    python3 -m pip install --no-deps "basic-pitch==0.4.0"
+    python3 -c "from fl_studio_mcp.tools.audio import chords_available as c; print('  Chords to MIDI: ready' if c() else '  WARNING: chords to MIDI is not working, see output above')"
+  fi
+else
+  echo "  Audio to MIDI not installed."
+fi
+
 echo
 echo "[3/4] Seeding the note-bridge pyscript (MCP_Apply)..."
 if ! python3 - <<'PYEOF'

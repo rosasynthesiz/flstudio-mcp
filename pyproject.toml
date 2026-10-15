@@ -58,6 +58,21 @@ audio-accurate = [
     "torch>=2.0",
     "torchcrepe>=0.0.23",
 ]
+# Chords to MIDI (Basic Pitch on ONNX). Also run, since its TensorFlow pin has
+# no Python 3.12 build:  pip install --no-deps basic-pitch==0.4.0
+audio-chords = [
+    "librosa>=0.10",
+    "soundfile>=0.12",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "onnxruntime>=1.16",
+    "pretty-midi>=0.2.9",
+    "mir-eval>=0.6",
+    "resampy>=0.2.2,<0.4.3",
+    "setuptools<81",          # resampy needs pkg_resources
+    "scikit-learn",
+    "typing-extensions",
+]
 
 [project.scripts]
 fl-studio-mcp = "fl_studio_mcp.server:main"
