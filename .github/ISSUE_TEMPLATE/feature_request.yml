@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a new tool or improvement
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the workflow or limitation, ideally from a producer's point of view.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: New tool, parameter, or behavior. Mention the FL Studio API calls involved if you know them.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform(s) this concerns
+      multiple: true
+      options: [Windows, macOS, All]
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd like to open a PR for this

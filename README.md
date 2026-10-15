@@ -2,7 +2,7 @@
 
 **Control FL Studio with Claude: AI mixing, composition, and mix diagnosis through natural language.**
 
-![version](https://img.shields.io/badge/version-1.0.0-blue)
+[![PyPI](https://img.shields.io/pypi/v/fl-studio-mcp)](https://pypi.org/project/fl-studio-mcp/)
 ![status](https://img.shields.io/badge/status-beta-yellow)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![python](https://img.shields.io/badge/python-3.10+-blue)
@@ -20,6 +20,14 @@ flstudio-mcp is a Model Context Protocol (MCP) server that lets Claude Desktop d
 It is genre- and producer-agnostic: nothing about it assumes a particular style of music.
 
 ## Quickstart
+
+Install the server from PyPI:
+
+```bash
+pip install fl-studio-mcp
+```
+
+Then run the installer for your OS to set up the FL controller script and note bridge:
 
 ```bat
 scripts\install_windows.bat        :: controller + server + note bridge
