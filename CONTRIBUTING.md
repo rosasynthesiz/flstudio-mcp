@@ -30,14 +30,18 @@ You'll need the same environment as a user, plus an editable install:
 - Windows 10/11 or macOS, FL Studio 2025+, Python 3.12
 - loopMIDI on Windows or IAC Driver on macOS, with two ports named exactly
   FLStudioMCP RX and FLStudioMCP TX
-- Claude Desktop (or any MCP client) for end-to-end testing
+- Claude Code or Claude Desktop (or any MCP client) for end-to-end testing
 
 Install steps: clone the repo, cd into it, run `scripts\install_windows.bat` on
 Windows or `./scripts/install_macos.sh` on macOS, then `pip install -e ".[audio]"`
-if you'll touch the audio analysis code. Wire the virtual MIDI ports in FL
-(Options > MIDI Settings), confirm `[FLStudioMCP] Ready` in FL's Script output,
-start the bridge with `fl-studio-mcp-daemon`, then verify the link by asking
-Claude to call `fl_ping`.
+if you'll touch the audio analysis code (on Windows the installer uses `.venv`,
+so run `.venv\Scripts\pip`). Wire the virtual MIDI ports in FL (Options > MIDI Settings), confirm
+`[FLStudioMCP] Ready` in FL's Script output, start the bridge with
+`scripts\start_daemon.bat` (Windows) or `fl-studio-mcp-daemon` (macOS), then
+verify the link by asking Claude to call `fl_ping`.
+
+On Windows, quit Claude and stop the daemon before re-running the installer:
+running processes lock the files in `.venv`.
 
 ## Project layout
 

@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import os
 
-PIANO_ROLL_SCRIPTS_DIR = os.path.expanduser(
-    "~/Documents/Image-Line/FL Studio/Settings/Piano roll scripts"
-)
+from .paths import fl_settings_dir
+
+PIANO_ROLL_SCRIPTS_DIR = str(fl_settings_dir() / "Piano roll scripts")
 APPLY_SCRIPT_NAME = "MCP_Apply.pyscript"
 
 _DEFAULT_VELOCITY = 100 / 127.0

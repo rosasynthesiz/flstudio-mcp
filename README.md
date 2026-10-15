@@ -15,15 +15,16 @@
 
 ## Overview
 
-flstudio-mcp is a Model Context Protocol (MCP) server that lets Claude Desktop drive FL Studio 2025 directly — the mixer, plugins, piano roll, routing, and project — from plain-language requests. Ask for a mix diagnosis, a vocal chain, a chord progression in a particular scale, or a full arrangement, and Claude carries it out through FL's scripting API and a set of calibrated, safety-checked tools.
+flstudio-mcp is a Model Context Protocol (MCP) server that lets Claude (Claude Code or Claude Desktop) drive FL Studio 2025 directly — the mixer, plugins, piano roll, routing, and project — from plain-language requests. Ask for a mix diagnosis, a vocal chain, a chord progression in a particular scale, or a full arrangement, and Claude carries it out through FL's scripting API and a set of calibrated, safety-checked tools.
 
 It is genre- and producer-agnostic: nothing about it assumes a particular style of music.
 
 ## Quickstart
 
 ```bat
-scripts\install_windows.bat        :: controller + server + note bridge
-fl-studio-mcp-daemon               :: start the bridge, keep it running
+:: first: in loopMIDI, create two ports named exactly "FLStudioMCP RX" and "FLStudioMCP TX"
+scripts\install_windows.bat              :: controller + server (.venv) + note bridge
+scripts\start_daemon.bat                 :: start the bridge in its own window, keep it open
 ```
 
 ```bash
@@ -83,7 +84,7 @@ These are properties of FL Studio's scripting API, stated plainly:
 
 - **Windows 10/11** (tested on Windows 11) or **macOS**
 - **FL Studio 2025** or newer
-- **Claude Desktop** (or any MCP client)
+- **Claude Code** or **Claude Desktop** (or any MCP client)
 - **Python 3.10+**
 - Virtual MIDI ports:
   - Windows: **loopMIDI** ([download](https://www.tobias-erichsen.de/software/loopmidi.html))
@@ -95,9 +96,19 @@ Linux is not yet supported — contributions welcome.
 ## Setup
 
 1. **Create two virtual MIDI ports**, named exactly `FLStudioMCP RX` and
-   `FLStudioMCP TX`.
+   `FLStudioMCP TX`. These are the "cables" between the MCP server and FL
+   Studio: one carries commands into FL (RX), the other carries answers back
+   (TX). Do this **before** running the installer, because it checks for them.
 
-   Windows: create both ports in loopMIDI.
+   Windows (loopMIDI):
+   - Install and open [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html).
+   - If the list already holds ports with default names (`loopMIDI Port`,
+     `loopMIDI Port 1`, …), select them and click **−** to remove them. The
+     default names will not be detected.
+   - In the **New port-name** box at the bottom, type `FLStudioMCP RX` and click **+**.
+   - Type `FLStudioMCP TX` and click **+** again.
+   - Keep loopMIDI running (it can start with Windows from its tray icon);
+     the ports exist only while it runs.
 
    macOS:
    - Open **Audio MIDI Setup**.
@@ -127,7 +138,19 @@ Linux is not yet supported — contributions welcome.
 
    This copies the controller script, seeds the note-bridge pyscript
    (`MCP_Apply`), installs the server, and checks that your virtual MIDI ports
-   exist. For audio features, add the optional extras:
+   exist.
+
+   On Windows the server is installed into a `.venv` folder inside the repo,
+   using Python 3.12/3.11/3.10 when available (the MIDI library has no working
+   build for newer Pythons on Windows). The installer prints the full paths of
+   the commands to use in the next steps. It finds your Documents folder even
+   when it is redirected (OneDrive, non-English names). All FL Studio versions
+   (2024, 2025, 2026, …) share one user-data folder, so one install covers
+   them all. It also follows FL's own "User data folder" setting; if it still
+   can't find the folder, run `setx FL_SETTINGS "<folder>\FL Studio\Settings"`
+   once and open a new terminal (the installer and the daemon both use it).
+
+   For audio features, add the optional extras (Windows: `.venv\Scripts\pip`):
    ```
    pip install -e ".[audio]"
    pip install -e ".[audio,audio-accurate]"
@@ -135,15 +158,24 @@ Linux is not yet supported — contributions welcome.
 
 3. **Configure FL Studio** — Options > MIDI Settings:
    - Enable `FLStudioMCP RX` as an **input**, set its controller type to **FLStudioMCP**, and give it a port number.
-   - Enable `FLStudioMCP TX` as an **output** with the **same** port number.
+   - Select `FLStudioMCP TX` in the **output** list and give it the **same** port number. Outputs have no Enable button; setting the port is what activates it. Leave **Send master sync** off.
    - View > Script output should show `[FLStudioMCP] Ready`.
 
 4. **Start the bridge daemon** (recommended) so the MIDI port is held by a stable process:
    ```bat
-   fl-studio-mcp-daemon
+   scripts\start_daemon.bat                 :: Windows: double-click, keep the window open
+   fl-studio-mcp-daemon                     # macOS
    ```
 
-5. **Register the server with Claude Desktop**:
+5. **Register the server with Claude Code or Claude Desktop.** On Windows, use
+   the full `...\.venv\Scripts\fl-studio-mcp.exe` path the installer printed
+   instead of `fl-studio-mcp`.
+
+   **Claude Code**: just ask Claude, for example:
+   > Add the fl-studio MCP server for all my projects: `<path to fl-studio-mcp>`
+   > with env FLSTUDIO_MCP_TRANSPORT=tcp
+
+   **Claude Desktop**, add it to the config file:
 
    Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
@@ -159,9 +191,9 @@ Linux is not yet supported — contributions welcome.
      }
    }
    ```
-   `tcp` routes through the daemon, which works regardless of how Claude Desktop launches the server. Omit the env var to let the server open the MIDI ports directly instead.
+   `tcp` routes through the daemon, which works regardless of how Claude launches the server. Omit the env var to let the server open the MIDI ports directly instead.
 
-6. **Arm the note bridge (per session)** — open the piano roll and run **MCP_Apply** once from its scripting menu, so note-writing works.
+6. **Arm the note bridge (per session)** — open the piano roll and choose **Tools > Scripting > MCP > MCP Apply** from its menu once, so note-writing works.
 
    On macOS, the note bridge re-triggers the armed script with `Cmd+Opt+Y`.
    Grant Accessibility permission to the app running the MCP server or daemon,
@@ -174,12 +206,17 @@ Verify the connection by asking Claude to call `fl_ping`.
 
 | Symptom | Fix |
 |---|---|
-| Virtual MIDI ports not found / not detected | The two ports must be named **exactly** `FLStudioMCP RX` and `FLStudioMCP TX`. Recreate them in loopMIDI (Windows) or IAC Driver (macOS), then re-run the installer. |
+| Virtual MIDI ports not found / not detected | The two ports must be named **exactly** `FLStudioMCP RX` and `FLStudioMCP TX`. loopMIDI's default `loopMIDI Port` names won't work. Recreate them in loopMIDI (Windows) or IAC Driver (macOS), make sure loopMIDI is running, then re-run the installer. |
+| `FL Studio Settings\Hardware folder not found` | Open FL Studio once so it creates its user-data folder. If you moved that folder (Options > File settings > User data folder), `setx FL_SETTINGS "<that folder>\FL Studio\Settings"`, open a new terminal and re-run. |
+| `fl-studio-mcp-daemon` is not recognized | The commands live in the repo's `.venv\Scripts\` folder. Run them by full path (the installer prints it). |
+| Python crashes on start / MIDI library fails to load (Windows) | Install Python 3.12 from python.org, delete the `.venv` folder, and re-run the installer. |
 | No `[FLStudioMCP] Ready` in FL's Script output | The controller isn't registered: set the `FLStudioMCP RX` input's **Controller type** to **FLStudioMCP** in MIDI Settings, confirm `device_FLStudioMCP.py` is in `Settings\Hardware\FLStudioMCP\`, then fully restart FL Studio. |
-| Claude can't reach FL / `fl_ping` fails | Make sure the daemon is running (`fl-studio-mcp-daemon`); check the transport matches (`FLSTUDIO_MCP_TRANSPORT=tcp` uses the daemon, unset uses direct MIDI); restart Claude Desktop after editing its config. |
+| Claude can't reach FL / `fl_ping` fails | Make sure the daemon is running (`fl-studio-mcp-daemon`); check the transport matches (`FLSTUDIO_MCP_TRANSPORT=tcp` uses the daemon, unset uses direct MIDI); restart Claude Desktop after editing its config, or run `/mcp` in Claude Code to reconnect. |
+| `fl_ping` says the heartbeat is stale (`Ready` is shown, but FL stops answering) | Usually happens after changing MIDI Settings while the script is running. Open View > Script output, select the FLStudioMCP tab and click **Reload script** (or restart FL Studio). Also check that the Output port number is on `FLStudioMCP TX`, not `FLStudioMCP RX`. |
 | Note-writing does nothing | Run `MCP_Apply` once from the piano roll's scripting menu this session — it arms the note bridge. |
 | macOS note-trigger fails | Grant Accessibility permission to the app running the MCP server or daemon, then click the FL Piano roll and try `Cmd+Opt+Y`. |
-| Audio tools error or are unavailable | Install the optional extras: `pip install -e ".[audio]"` (or `".[audio,audio-accurate]"`). |
+| Audio tools error or are unavailable | Install the optional extras: `pip install -e ".[audio]"` (or `".[audio,audio-accurate]"`); on Windows use `.venv\Scripts\pip`. |
+| The installer stops because the MCP server is running | Claude Desktop or Claude Code is running `fl-studio-mcp.exe` from the `.venv`, which locks its files. Quit Claude Desktop or Claude Code, then re-run. |
 
 ## Usage examples
 
