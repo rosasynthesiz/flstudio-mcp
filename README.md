@@ -53,6 +53,8 @@ Full setup is below.
 
 ### Plugin & preset control
 - Read and set plugin parameters by name, on native and third-party plugins (the parameter list is resolved live).
+- **Verified writes** — every parameter write is re-read on a fresh tick and retried (0.4 s apart) if FL did not take it; the answer carries `verified` / `attempts` and a `hint`, so a swallowed write is reported instead of echoed back as if it worked.
+- **Batch parameter changes** — `fl_plugin_set_params` sets several knobs of one plugin in a single paced burst and one undo step; `fl_rollback_last_change` puts them all back together.
 - **Chain suggestions** and **preset recommendations** drawn from your actual installed library — read directly from FL's plugin database and preset folders on disk, so recommendations are limited to what you own.
 
 ### Composition
@@ -65,7 +67,7 @@ Full setup is below.
 - Tempo and key estimation from an audio file.
 - Melody-to-MIDI transcription (CREPE pitch tracking, with a lighter fallback).
 
-The server exposes 67 tools across 14 categories, plus 6 live resources (project, mixer, transport, channels, patterns, status) that Claude can read directly.
+The server exposes 68 tools across 14 categories, plus 6 live resources (project, mixer, transport, channels, patterns, status) that Claude can read directly.
 
 ## What sets it apart
 
@@ -76,6 +78,7 @@ flstudio-mcp is built as a mixing and production assistant, not only a note send
 These are properties of FL Studio's scripting API, stated plainly:
 
 - **Plugins, audio files, and rendering are UI-only.** FL's API cannot load a plugin, load an audio file, or render audio. The plugin and preset tools therefore *suggest* — you load the chosen plugin or preset, and Claude then configures it. Audio export is done manually (File > Export); Claude can analyze the rendered file afterward.
+- **Only some plugin parameters accept arbitrary values.** Levels and gains do; stepped parameters (filter types, orders, selectors) snap to their own grid steps, so an off-grid request cannot land; some parameters (Fruity Parametric EQ 2's band widths) ignore writes entirely. The parameter tools re-read and retry, then report `verified: false` with a `hint` and the value FL actually holds, instead of echoing the request as if it had landed.
 - **Note writing is armed once per session.** A generated pyscript writes notes into the piano roll; FL exposes no API to run a pyscript, so you run "MCP_Apply" once from the piano roll's scripting menu at the start of a session.
 - **Micro-tonal and gamaka-heavy music is approximated.** Scales with intervals smaller than a semitone (e.g. Arabic maqam) are rounded to the nearest semitone, and traditions built on gamaka/ornamentation (e.g. Carnatic) get the *scale framework* — the correct swaras and intervals — not gamaka or micro-tonal rendering. That's a limit of 12-tone MIDI, not of the tools.
 

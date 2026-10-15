@@ -121,6 +121,54 @@ def take_snapshot(bridge, scope):
     raise ValueError("unknown snapshot scope: %r" % (scope,))
 
 
+def _re_read(bridge, scope, fallback):
+    """Fresh-tick re-read of a scope, falling back to the handler's echo."""
+    try:
+        return take_snapshot(bridge, scope)
+    except Exception:
+        return fallback
+
+
+def _value_matches(after, field, expected, tol) -> bool:
+    """Did the re-read ``field`` land on ``expected`` within ``tol``?
+
+    A missing / non-numeric field counts as a miss (FL answered but the value
+    is not what we asked for), so callers report ``verified: False`` rather
+    than silently claiming success.
+    """
+    try:
+        actual = float((after or {}).get(field))
+        want = float(expected)
+    except (TypeError, ValueError):
+        return False
+    return abs(actual - want) <= tol
+
+
+def _landed_write(bridge, scope, command, params, vv, echo,
+                  attempts_max=3, delay=0.4):
+    """Re-issue ``command`` until a FRESH re-read of ``scope`` lands on target.
+
+    ``vv=(field, expected, tol)`` is the value check; ``echo`` is the handler's
+    same-tick reply to the first write (stale for params FL commits later).
+    Each miss is re-written ``delay`` apart (0.4 s -- the live pacing, unlike
+    the 0.06 s toggle coalescing window in :func:`_verify_retry`), for at most
+    ``attempts_max`` retries. Returns ``(after, echo, attempts, verified)``;
+    ``attempts`` counts the initial write, so 1 = it stuck first try.
+    """
+    field, expected, tol = vv
+    after = _re_read(bridge, scope, echo)
+    attempts = 1
+    # Pickup mode (plugin window open) and stepped params silently swallow a
+    # write: the value simply isn't there. Re-write at a live pace, then
+    # report the truth instead of the requested value.
+    while not _value_matches(after, field, expected, tol) and attempts <= attempts_max:
+        time.sleep(delay)
+        echo = bridge.call(command, params)
+        after = _re_read(bridge, scope, echo)
+        attempts += 1
+    return after, echo, attempts, _value_matches(after, field, expected, tol)
+
+
 def _verify_retry(bridge, command, params, result, verify, attempts=4, delay=0.06):
     """Re-issue a toggle-style command until its reported state sticks.
 
@@ -139,12 +187,22 @@ def _verify_retry(bridge, command, params, result, verify, attempts=4, delay=0.0
     return result
 
 
-def safe_write(bridge, *, tool, scope, command, params, build_restore, verify=None):
+def safe_write(bridge, *, tool, scope, command, params, build_restore,
+               verify=None, verify_value=None, verify_attempts=3,
+               verify_delay=0.4):
     """Snapshot -> log -> execute -> (verify+retry) -> read back. Honors dry-run.
 
     ``build_restore(before)`` returns ``{"command", "params"}`` that undoes
     this change. ``verify=(field, expected)`` re-issues the command until the
     reported state matches (used for flaky toggle writes like mute/solo).
+
+    ``verify_value=(field, expected, tol)`` instead checks the FRESH re-read
+    against a VALUE (plugin params): on a miss it re-writes and re-reads up to
+    ``verify_attempts`` times, ``verify_delay`` apart -- a slow, live pace
+    (0.4 s), unlike the 0.06 s toggle coalescing window. All attempts happen
+    BEFORE the single changelog append, so the log still holds one entry whose
+    ``after`` is the true final state. The response then carries
+    ``verified: bool`` and ``attempts: int`` (1 = landed first try).
     """
     if _dry_run:
         return {
@@ -160,19 +218,27 @@ def safe_write(bridge, *, tool, scope, command, params, build_restore, verify=No
     # script-tick, so the handler's SAME-tick readback (echo) can report the
     # stale pre-write value. Re-read the scope on a FRESH tick for the TRUE
     # post-write state. Fall back to the echo if the scope can't be re-read.
-    try:
-        after = take_snapshot(bridge, scope)
-    except Exception:
-        after = echo
+    if verify_value is None:
+        after, attempts, verified = _re_read(bridge, scope, echo), 1, None
+    else:
+        after, echo, attempts, verified = _landed_write(
+            bridge, scope, command, params, verify_value, echo,
+            attempts_max=verify_attempts, delay=verify_delay)
     _log.append({
         "tool": tool, "scope": scope, "command": command, "params": params,
         "before": before, "after": after, "echo": echo, "restore": restore,
         "ts": time.time(),
     })
-    return {"ok": True, "before": before, "after": after}
+    out = {"ok": True, "before": before, "after": after}
+    if verify_value is not None:
+        out["verified"] = bool(verified)
+        out["attempts"] = attempts
+    return out
 
 
-def safe_write_group(bridge, *, tool, scope, writes):
+def safe_write_group(bridge, *, tool, scope, writes, delay=0.0,
+                     verify_values=None, verify_attempts=3,
+                     verify_delay=0.4):
     """Apply several param writes as ONE rollback unit.
 
     ``writes`` is a list of dicts, each:
@@ -184,6 +250,14 @@ def safe_write_group(bridge, *, tool, scope, writes):
     then executes them, and logs ONE changelog entry whose ``restores`` is a
     LIST -- so :func:`rollback_last_change` reverts the whole group atomically.
     Honors dry-run. Returns {"ok", "before":[...], "after":[...]}.
+
+    ``delay`` sleeps BETWEEN consecutive writes (FL drops writes that arrive
+    back-to-back; 0.4 s is the tested pace for plugin params -- a batch of N
+    therefore costs (N-1)*delay plus the RPC time). ``verify_values``
+    is a per-write list mirroring :func:`safe_write`'s ``verify_value`` (or
+    None to skip): each miss is re-written/re-read ``verify_attempts`` times
+    before moving on, and the response gains parallel ``verified`` /
+    ``attempts`` lists -- still one changelog entry.
     """
     if _dry_run:
         return {
@@ -197,13 +271,33 @@ def safe_write_group(bridge, *, tool, scope, writes):
         before = take_snapshot(bridge, w["snap_scope"])
         befores.append(before)
         restores.append(w["restore"](before))
-    afters = [bridge.call(w["command"], w["params"]) for w in writes]
-    _log.append({
+    afters, verified_out, attempts_out = [], [], []
+    for i, w in enumerate(writes):
+        if i and delay:
+            time.sleep(delay)          # between writes -- FL drops back-to-back
+        echo = bridge.call(w["command"], w["params"])
+        after, verified, attempts = echo, None, None
+        vv = verify_values[i] if (verify_values and i < len(verify_values)) else None
+        if vv is not None:
+            after, echo, attempts, verified = _landed_write(
+                bridge, w["snap_scope"], w["command"], w["params"], vv, echo,
+                attempts_max=verify_attempts, delay=verify_delay)
+        afters.append(after)
+        if verify_values is not None:
+            # None = this write opted out of verification (not a failed one).
+            verified_out.append(verified)
+            attempts_out.append(attempts)
+    entry = {
         "tool": tool, "scope": scope, "group": True,
         "befores": befores, "afters": afters, "restores": restores,
         "ts": time.time(),
-    })
-    return {"ok": True, "before": befores, "after": afters}
+    }
+    _log.append(entry)
+    out = {"ok": True, "before": befores, "after": afters}
+    if verify_values is not None:
+        out["verified"] = verified_out
+        out["attempts"] = attempts_out
+    return out
 
 
 def rollback_last_change(bridge):
