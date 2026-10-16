@@ -1201,6 +1201,8 @@ def _h_ensure_piano_roll(p):
         return out
     try:
         ui.showWindow(wid)
+        if hasattr(ui, "setFocused"):
+            ui.setFocused(wid)   # Ctrl+Alt+Y only fires when the Piano roll is the active panel
         out["ok"] = True
         out["method"] = "ui.showWindow(widPianoRoll)"
     except Exception as e:
@@ -1217,8 +1219,22 @@ def _h_channel_select(p):
         channels.selectOneChannel(idx)
     except Exception as e:
         return {"ok": False, "error": "selectOneChannel: %s" % e}
+    # selectOneChannel alone does not retarget an already-open Piano roll;
+    # reopening it does (verified FL 26.1.4).
+    wid = getattr(midi, "widPianoRoll", None)
+    reopened = False
+    if wid is not None and hasattr(ui, "showWindow"):
+        try:
+            if hasattr(ui, "hideWindow"):
+                ui.hideWindow(wid)
+            ui.showWindow(wid)
+            if hasattr(ui, "setFocused"):
+                ui.setFocused(wid)
+            reopened = True
+        except Exception:
+            reopened = False
     return {"ok": True, "channel": idx, "name": channels.getChannelName(idx),
-            "selected": channels.channelNumber()}
+            "selected": channels.channelNumber(), "piano_roll_retargeted": reopened}
 
 
 def _h_arrange_add_marker(p):
