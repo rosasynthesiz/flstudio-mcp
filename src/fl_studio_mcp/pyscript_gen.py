@@ -30,7 +30,7 @@ _TEMPLATE = '''# Script.Name = "MCP Apply"
 import flpianoroll as flp
 
 MODE = {mode!r}        # "replace" clears the pattern first; "append" adds
-NOTES = {notes!r}      # (pitch, time_bars, length_bars, velocity 0..1)
+NOTES = {notes!r}      # (pitch, time_bars, length_bars, velocity 0..1[, porta])
 
 
 def _run():
@@ -41,12 +41,15 @@ def _run():
             score.clearNotes(True)     # FL 25.2.5: positional, no keyword
         except TypeError:
             score.clearNotes()
-    for pitch, t_bars, len_bars, vel in NOTES:
+    for item in NOTES:
+        pitch, t_bars, len_bars, vel = item[:4]
         n = flp.Note()
         n.number = int(pitch)
         n.time = int(round(t_bars * bar))
         n.length = max(1, int(round(len_bars * bar)))
         n.velocity = float(vel)
+        if len(item) > 4 and item[4]:
+            n.porta = True
         score.addNote(n)
 
 
@@ -69,16 +72,21 @@ _go()
 def render_apply_script(notes, mode="replace"):
     """Return the .pyscript source text for the given notes.
 
-    notes: iterable of dicts {pitch, time_bars, length_bars, velocity}.
+    notes: iterable of dicts {pitch, time_bars, length_bars, velocity[, porta]}.
+    A truthy ``porta`` sets FL's per-note portamento (slide into the note, as
+    used for 808 glides); notes without it render exactly as before.
     """
     tuples = []
     for n in notes:
-        tuples.append((
+        t = (
             int(n["pitch"]),
             float(n.get("time_bars", 0.0)),
             float(n.get("length_bars", 1.0)),
             float(n.get("velocity", _DEFAULT_VELOCITY)),
-        ))
+        )
+        if n.get("porta"):
+            t += (True,)
+        tuples.append(t)
     return _TEMPLATE.format(mode=mode, notes=tuples)
 
 

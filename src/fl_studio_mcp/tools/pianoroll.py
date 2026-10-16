@@ -26,6 +26,8 @@ class PianoRollNote(BaseModel):
     length_bars: float = Field(1.0, gt=0.0, description="Duration in bars.")
     velocity: float = Field(100 / 127.0, ge=0.0, le=1.0,
                             description="0.0-1.0 (0.787 ~= MIDI velocity 100).")
+    porta: bool = Field(False,
+                        description="Portamento: slide into this note from the previous one (808 glides).")
 
 
 def register(mcp: FastMCP) -> None:
@@ -47,7 +49,8 @@ def register(mcp: FastMCP) -> None:
     ) -> dict:
         """Write notes into the currently-open FL Piano roll.
 
-        Each note: {pitch (MIDI), time_bars, length_bars, velocity 0-1}. Set
+        Each note: {pitch (MIDI), time_bars, length_bars, velocity 0-1,
+        porta (optional, slide into the note)}. Set
         quantize (grid in bars) to snap note starts to a grid before writing.
         Setup: open the Piano roll and run 'MCP_Apply' once from its Scripting
         menu (so Run last script again targets it). mode='replace' clears first.
