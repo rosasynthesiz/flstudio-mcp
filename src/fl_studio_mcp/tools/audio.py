@@ -9,11 +9,17 @@ often confuses relative major/minor -- always labelled 'estimated'.
 """
 from __future__ import annotations
 
+import contextlib
+import logging
 import os
+import sys
+import time
 from typing import Annotated, Optional
 
 from fastmcp import FastMCP
 from pydantic import Field
+
+from .export import _EXPORT_DIR
 
 # Krumhansl-Schmuckler key profiles (C-rooted; rotated per candidate tonic).
 _KS_MAJOR = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
@@ -249,6 +255,148 @@ def audio_extract_melody(path, bpm=None, quantize=1 / 16.0, min_note_sec=0.06,
             "notes": notes[:200], "bridge_notes": bridge[:200]}
 
 
+# -- polyphonic transcription (chords) ----------------------------------------
+# Spotify's Basic Pitch on its bundled ONNX model (no TensorFlow needed).
+
+def _import_basic_pitch():
+    # Hide its import warnings about the backends we don't use.
+    logging.disable(logging.WARNING)
+    try:
+        import basic_pitch
+        import basic_pitch.inference
+    finally:
+        logging.disable(logging.NOTSET)
+    return basic_pitch
+
+
+def _onnx_model_path():
+    basic_pitch = _import_basic_pitch()
+    p = os.path.join(os.path.dirname(basic_pitch.__file__),
+                     "saved_models", "icassp_2022", "nmp.onnx")
+    return p if os.path.isfile(p) else None
+
+
+def chords_available() -> bool:
+    try:
+        import onnxruntime  # noqa: F401
+        return _onnx_model_path() is not None
+    except Exception:
+        return False
+
+
+_CHORD_QUALITIES = {
+    (0, 4, 7): "", (0, 3, 7): "m", (0, 3, 6): "dim", (0, 4, 8): "aug",
+    (0, 2, 7): "sus2", (0, 5, 7): "sus4",
+    (0, 4, 7, 10): "7", (0, 3, 7, 10): "m7", (0, 4, 7, 11): "maj7",
+    (0, 2, 3, 7): "m(add9)", (0, 2, 4, 7): "add9",
+}
+
+
+def _chord_name(pitch_classes):
+    """Chord name for a set of pitch classes (0-11), or None if no known shape."""
+    pcs = sorted(set(pitch_classes))
+    for root in pcs:
+        shape = tuple(sorted((p - root) % 12 for p in pcs))
+        if shape in _CHORD_QUALITIES:
+            return _NOTES[root] + _CHORD_QUALITIES[shape]
+    return None
+
+
+def _bar_progression(events, barlen, max_notes=4):
+    """Per bar: strongest pitch classes (by duration) and a rough chord name.
+    A note counts in every bar it sounds in, weighted by its time in that bar."""
+    bars = {}
+    for st, en, pitch, _amp in events:
+        bar = int(st // barlen)
+        while bar * barlen < en:
+            overlap = min(en, (bar + 1) * barlen) - max(st, bar * barlen)
+            if overlap > 0:
+                weights = bars.setdefault(bar, {})
+                weights[pitch % 12] = weights.get(pitch % 12, 0.0) + overlap
+            bar += 1
+    out = []
+    for bar in sorted(bars):
+        top = sorted(bars[bar], key=bars[bar].get, reverse=True)[:max_notes]
+        name = None
+        for n in range(len(top), 2, -1):           # all top notes, then fewer
+            name = _chord_name(top[:n])
+            if name:
+                break
+        out.append({"bar": bar + 1, "chord": name, "notes": [_NOTES[p] for p in top]})
+    return out
+
+
+def _group_chords(events, window_sec=0.06):
+    """Group notes whose onsets fall within window_sec of each other."""
+    groups = []
+    for st, _en, pitch, _amp in sorted(events, key=lambda e: e[0]):
+        if groups and st - groups[-1]["start_sec"] <= window_sec:
+            groups[-1]["pitches"].append(pitch)
+        else:
+            groups.append({"start_sec": st, "pitches": [pitch]})
+    return groups
+
+
+def audio_extract_chords(path, bpm=None, quantize=1 / 16.0, onset_threshold=0.5,
+                         frame_threshold=0.3, min_note_ms=80.0, midi_out=None,
+                         include_notes=False, max_notes=500):
+    """Transcribe POLYPHONIC audio (chords, piano, keys) with Basic Pitch.
+
+    Returns a per-bar chord progression; midi_out writes every note to a .mid;
+    include_notes also returns up to max_notes notes + bridge_notes."""
+    model = _onnx_model_path()
+    import librosa
+    import numpy as np
+    from basic_pitch.inference import predict
+
+    if model is None:
+        raise RuntimeError("Basic Pitch ONNX model not found; re-run the installer "
+                           "and answer yes to audio to MIDI")
+    # predict() prints to stdout, the MCP stdio channel.
+    with contextlib.redirect_stdout(sys.stderr):
+        _out, midi_data, events = predict(
+            path, model, onset_threshold=onset_threshold,
+            frame_threshold=frame_threshold, minimum_note_length=min_note_ms)
+
+    if bpm is None:
+        y, sr = librosa.load(path, mono=True)
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+        bpm = float(np.atleast_1d(tempo).ravel()[0])
+        if bpm > 180.0:
+            bpm /= 2.0
+    barlen = 4.0 * 60.0 / bpm
+
+    def q(x):
+        return round(round(x / quantize) * quantize, 4) if quantize else round(x, 4)
+
+    simple = [(float(e[0]), float(e[1]), int(e[2]), float(e[3])) for e in events]
+    notes, bridge = [], []
+    for st, en, pitch, amp in sorted(simple, key=lambda e: (e[0], e[2])):
+        notes.append({"midi": pitch, "name": str(librosa.midi_to_note(pitch, unicode=False)),
+                      "start_sec": round(st, 3), "dur_sec": round(en - st, 3),
+                      "amplitude": round(amp, 3)})
+        bridge.append({"pitch": pitch, "time_bars": q(st / barlen),
+                       "length_bars": max(q((en - st) / barlen), quantize),
+                       "velocity": round(min(1.0, max(0.2, amp)), 3)})
+
+    chord_count = sum(1 for g in _group_chords(simple) if len(set(g["pitches"])) >= 2)
+
+    out = {"path": str(path), "engine": "basic-pitch (onnx)", "bpm_used": round(bpm, 1),
+           "note_count": len(notes), "chord_count": chord_count,
+           "quality": ("Polyphonic transcription: best on a clean, isolated keys/piano/"
+                       "guitar stem. Expect some stray or missing notes; review before writing. "
+                       "Chord names are a rough per-bar reading (chord None = no known shape)."),
+           "progression": _bar_progression(simple, barlen)}
+    if include_notes:
+        out["notes"] = notes[:max_notes]
+        out["bridge_notes"] = bridge[:max_notes]
+        out["notes_truncated"] = len(notes) > max_notes
+    if midi_out:
+        midi_data.write(str(midi_out))
+        out["midi_file"] = str(midi_out)
+    return out
+
+
 def register(mcp: FastMCP) -> None:
     _RO = {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True}
 
@@ -282,5 +430,39 @@ def register(mcp: FastMCP) -> None:
             return {"ok": False, "error": "file not found: %s" % path}
         try:
             return {"ok": True, **audio_extract_melody(path, bpm, engine=engine, min_conf=min_conf)}
+        except Exception as e:
+            return {"ok": False, "error": "%s: %s" % (type(e).__name__, e)}
+
+    @mcp.tool(annotations={"title": "Extract chords/polyphonic notes from audio (Basic Pitch)",
+                           "readOnlyHint": False, "destructiveHint": False,
+                           "idempotentHint": False, "openWorldHint": True})
+    def fl_extract_chords(
+        path: Annotated[str, Field(description="Path to a WAV/MP3 with chords or several notes at once (keys, piano, guitar stem).")],
+        bpm: Annotated[Optional[float], Field(description="Override BPM for bar quantization; auto-detected if omitted.")] = None,
+        save_midi: Annotated[bool, Field(description="Write ALL notes to a .mid file in ~/.flstudio-mcp/exports to drag into FL.")] = True,
+        include_notes: Annotated[bool, Field(description="Also return notes + bridge_notes (first max_notes) for fl_write_piano_roll_notes. Large; use for short clips.")] = False,
+        max_notes: Annotated[int, Field(ge=1, le=2000, description="Cap for include_notes. Default 500.")] = 500,
+        onset_threshold: Annotated[float, Field(ge=0, le=1, description="Higher = fewer, surer note starts. Default 0.5.")] = 0.5,
+        frame_threshold: Annotated[float, Field(ge=0, le=1, description="Higher = fewer, surer sustained notes. Default 0.3.")] = 0.3,
+    ) -> dict:
+        """Transcribe POLYPHONIC audio (full chords) to notes with Basic Pitch.
+        Returns a per-bar chord progression and writes every note to a .mid;
+        include_notes also returns bridge_notes for fl_write_piano_roll_notes.
+        Does NOT write to FL; review first."""
+        if not os.path.isfile(path):
+            return {"ok": False, "error": "file not found: %s" % path}
+        if not chords_available():
+            return {"ok": False, "error": "chord extraction is not installed: re-run "
+                    "the installer and answer yes to audio to MIDI"}
+        midi_out = None
+        if save_midi:
+            os.makedirs(_EXPORT_DIR, exist_ok=True)
+            base = os.path.splitext(os.path.basename(path))[0]
+            midi_out = os.path.join(_EXPORT_DIR, "%s_chords_%d.mid" % (base, int(time.time())))
+        try:
+            return {"ok": True, **audio_extract_chords(
+                path, bpm, onset_threshold=onset_threshold,
+                frame_threshold=frame_threshold, midi_out=midi_out,
+                include_notes=include_notes, max_notes=max_notes)}
         except Exception as e:
             return {"ok": False, "error": "%s: %s" % (type(e).__name__, e)}

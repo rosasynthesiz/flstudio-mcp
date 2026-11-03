@@ -624,6 +624,28 @@ def _h_channel_set_mute(p):
     return {"channel": c, "mute": bool(channels.isChannelMuted(c))}
 
 
+def _grid_args(p):
+    c = int(p["channel"])
+    n = max(1, min(int(p.get("length", 16)), 256))
+    return c, n
+
+
+def _h_channel_get_grid(p):
+    """Step-sequencer steps that are on, in the current pattern. Thin read."""
+    c, n = _grid_args(p)
+    on = [i for i in range(n) if channels.getGridBit(c, i)]
+    return {"channel": c, "length": n, "steps": on, "pattern": patterns.patternNumber()}
+
+
+def _h_channel_set_grid(p):
+    """Set exactly the given steps on (all others off) for 0..length-1."""
+    c, n = _grid_args(p)
+    want = set(int(s) for s in p.get("steps", []) if 0 <= int(s) < n)
+    for i in range(n):
+        channels.setGridBit(c, i, 1 if i in want else 0)
+    return _h_channel_get_grid(p)
+
+
 def _h_channel_set_solo(p):
     c = int(p["channel"])
     if bool(channels.isChannelSolo(c)) != bool(p["state"]):
@@ -1245,6 +1267,8 @@ def _h_ensure_piano_roll(p):
         return out
     try:
         ui.showWindow(wid)
+        if hasattr(ui, "setFocused"):
+            ui.setFocused(wid)   # Ctrl+Alt+Y only fires when the Piano roll is the active panel
         out["ok"] = True
         out["method"] = "ui.showWindow(widPianoRoll)"
     except Exception as e:
@@ -1261,8 +1285,24 @@ def _h_channel_select(p):
         channels.selectOneChannel(idx)
     except Exception as e:
         return {"ok": False, "error": "selectOneChannel: %s" % e}
+    # selectOneChannel alone does not retarget an already-open Piano roll;
+    # reopening it does (verified FL 26.1.4).
+    wid = getattr(midi, "widPianoRoll", None)
+    reopened = False
+    if (wid is not None and hasattr(ui, "getVisible")
+            and hasattr(ui, "hideWindow") and hasattr(ui, "showWindow")):
+        try:
+            # Preserve closed windows and older APIs whose visibility is unknown.
+            if ui.getVisible(wid):
+                ui.hideWindow(wid)
+                ui.showWindow(wid)
+                if hasattr(ui, "setFocused"):
+                    ui.setFocused(wid)
+                reopened = True
+        except Exception:
+            reopened = False
     return {"ok": True, "channel": idx, "name": channels.getChannelName(idx),
-            "selected": channels.channelNumber()}
+            "selected": channels.channelNumber(), "piano_roll_retargeted": reopened}
 
 
 def _h_arrange_add_marker(p):
@@ -1334,4 +1374,6 @@ _HANDLERS = {
     "channel_select": _h_channel_select,
     "ensure_piano_roll": _h_ensure_piano_roll,
     "pattern_list": _h_pattern_list,
+    "channel_get_grid": _h_channel_get_grid,
+    "channel_set_grid": _h_channel_set_grid,
 }
