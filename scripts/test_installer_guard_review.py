@@ -4,6 +4,8 @@ from pathlib import Path
 import subprocess
 import pytest
 
+pytestmark = pytest.mark.skipif(os.name != 'nt', reason='Windows batch installer guard')
+
 
 @pytest.mark.parametrize('process', ['fl-studio-mcp-daemon.exe', 'fl-studio-mcp.exe'])
 def test_lock_guard_precedes_controller_copy(tmp_path, process):
