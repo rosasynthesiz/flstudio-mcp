@@ -64,3 +64,43 @@ def register(mcp: FastMCP) -> None:
     ) -> dict:
         """Add a named timeline marker at a bar (intro/verse/chorus/drop)."""
         return _write_call(protocol.CMD_ARRANGE_ADD_MARKER, {"bar": bar, "name": name})
+
+    _RO = {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True}
+
+    @mcp.tool(annotations={"title": "List patterns", **_RO})
+    def fl_pattern_list() -> dict:
+        """List all patterns as {pattern (1-based), name}. Paginated internally."""
+        from ..connection import fetch_all_pages
+        return fetch_all_pages(get_bridge(), protocol.CMD_PATTERN_LIST, "patterns")
+
+    @mcp.tool(annotations={"title": "Select a pattern", **_WR})
+    def fl_pattern_select(
+        pattern: Annotated[int, Field(ge=1, description="1-based pattern number.")],
+    ) -> dict:
+        """Select (jump to) a pattern by its 1-based number. The note bridge then
+        writes into THIS pattern."""
+        preview = safety.preview_write(tool='pattern_select', command=protocol.CMD_PATTERN_SELECT,
+                                       params={'pattern': pattern})
+        if preview is not None:
+            return preview
+        return get_bridge().call(protocol.CMD_PATTERN_SELECT, {"pattern": pattern})
+
+    @mcp.tool(annotations={"title": "Rename a pattern", **_WR})
+    def fl_pattern_rename(
+        pattern: Annotated[int, Field(ge=1, description="1-based pattern number.")],
+        name: Annotated[str, Field(description="New pattern name.")],
+    ) -> dict:
+        """Rename a pattern by its 1-based number."""
+        preview = safety.preview_write(tool='pattern_rename', command=protocol.CMD_PATTERN_RENAME,
+                                       params={'pattern': pattern, 'name': name})
+        if preview is not None:
+            return preview
+        return get_bridge().call(protocol.CMD_PATTERN_RENAME,
+                                 {"pattern": pattern, "name": name})
+
+    @mcp.tool(annotations={"title": "Get pattern length", **_RO})
+    def fl_pattern_get_length(
+        pattern: Annotated[int, Field(ge=1, description="1-based pattern number.")],
+    ) -> dict:
+        """Return a pattern's length in beats and bars (4/4)."""
+        return get_bridge().call(protocol.CMD_PATTERN_GET_LENGTH, {"pattern": pattern})
