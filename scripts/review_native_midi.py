@@ -48,6 +48,10 @@ for cycle in range(3):
                  and any(tx in n for n in mido.get_output_names()), 'Ports not discoverable')
         peer_in = mido.open_input(find(mido.get_input_names(), rx))
         peer_out = mido.open_output(find(mido.get_output_names(), tx))
+        heartbeat = protocol.encode_message(protocol.DIR_HEARTBEAT,
+            protocol.new_request_id(), {'review_fake_controller': True})
+        peer_out.send(mido.Message('sysex', data=list(heartbeat)))
+        wait_for(bridge.is_alive, 'Native heartbeat did not reach bridge')
 
         def respond():
             try:
