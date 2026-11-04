@@ -33,6 +33,8 @@ def main() -> int:
     print("server:", " ".join(cmd))
     env = dict(os.environ, FLSTUDIO_MCP_TRANSPORT="tcp", FLSTUDIO_MCP_TCP_PORT="9798",
                PYTHONPATH=str(ROOT / "src") + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    if len(sys.argv) > 1:
+        env.pop("PYTHONPATH", None)  # do not accidentally substitute checkout source
     proc = subprocess.Popen(cmd, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL)
     lines: queue.Queue = queue.Queue()

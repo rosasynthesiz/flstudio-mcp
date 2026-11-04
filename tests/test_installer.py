@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import socket
 import subprocess
 import sys
 import time
@@ -44,15 +45,16 @@ def test_mcp_apply_seeded():
 @needs_log
 def test_port_check_ran():
     log = _log().lower()                  # Windows says MISSING, macOS says Missing
-    assert "missing ports" in log or "all required ports present" in log, \
+    assert '"missing_ports"' in log or "all required ports present" in log, \
         "installer log has no port check result"
 
 
 @needs_log
 def test_chords_ready():
-    if "Audio to MIDI not installed" in _log():
+    if "audio-chords" not in _log().split("Optional audio features:")[-1]:
         pytest.skip("installed without audio to MIDI")
-    assert "Chords to MIDI: ready" in _log(), "installer log doesn't say 'Chords to MIDI: ready'"
+    from fl_studio_mcp.tools.audio import chords_available
+    assert chords_available(), "installed chords package/model is not available"
 
 
 @needs_log
@@ -61,9 +63,22 @@ def test_installer_refuses_while_daemon_runs():
     cmd = shlex.split(os.environ.get("FLMCP_DAEMON_CMD", ""), posix=False)
     if not cmd:
         pytest.skip("set FLMCP_DAEMON_CMD")
-    daemon = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    daemon = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              env=dict(os.environ, FLSTUDIO_MCP_TCP_PORT=str(port)))
     try:
-        time.sleep(3)
+        deadline = time.monotonic() + 20
+        ready = False
+        while time.monotonic() < deadline and daemon.poll() is None:
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=.5):
+                    ready = True
+                    break
+            except OSError:
+                time.sleep(.1)
+        assert ready, "daemon launcher did not reach a listening state; guard test cannot proceed"
         run = subprocess.run(["cmd", "/c", str(ROOT / "scripts" / "install_windows.bat")],
                              capture_output=True, text=True, errors="replace", timeout=300,
                              env=dict(os.environ, FLMCP_EXTRAS="none"), cwd=ROOT)
@@ -72,3 +87,18 @@ def test_installer_refuses_while_daemon_runs():
         assert "daemon is running" in run.stdout, "installer didn't say the daemon is running"
     finally:
         subprocess.run(["taskkill", "/T", "/F", "/PID", str(daemon.pid)], capture_output=True)
+
+@needs_log
+def test_installed_runtime_contains_candidate_source(tmp_path):
+    import hashlib
+    import json
+    manifest = json.loads((ROOT / '.flmcp-runtime.json').read_text(encoding='utf-8'))
+    code = ('import hashlib,json,pathlib,fl_studio_mcp.safety as s; '
+            'p=pathlib.Path(s.__file__); '
+            'print(json.dumps({"path":str(p),"sha256":hashlib.sha256(p.read_bytes()).hexdigest()}))')
+    result = subprocess.run([manifest['python'], '-I', '-c', code], cwd=tmp_path,
+                            capture_output=True, text=True, check=True, timeout=30)
+    data = json.loads(result.stdout)
+    assert Path(data['path']).is_relative_to(ROOT / '.runtimes')
+    expected = hashlib.sha256((ROOT / 'src/fl_studio_mcp/safety.py').read_bytes()).hexdigest()
+    assert data['sha256'] == expected, 'installed safety package is not this candidate'

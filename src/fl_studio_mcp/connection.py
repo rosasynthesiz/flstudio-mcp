@@ -310,6 +310,17 @@ DEFAULT_TCP_HOST = "127.0.0.1"
 DEFAULT_TCP_PORT = 9787
 
 
+def local_tcp_host(host: str) -> str:
+    """Only numeric IPv4 loopback or localhost; never resolve arbitrary names."""
+    import ipaddress
+    if host == "localhost":
+        return DEFAULT_TCP_HOST
+    address = ipaddress.ip_address(host)
+    if address.version != 4 or not address.is_loopback:
+        raise ValueError("FLSTUDIO_MCP_TCP_HOST must be an IPv4 loopback address or localhost")
+    return str(address)
+
+
 class TCPBridge:
     """Drop-in replacement for :class:`FLBridge` that proxies to the daemon.
 
@@ -325,7 +336,7 @@ class TCPBridge:
         *,
         default_timeout: float = DEFAULT_TIMEOUT_SECONDS,
     ):
-        self.host = host or os.environ.get("FLSTUDIO_MCP_TCP_HOST", DEFAULT_TCP_HOST)
+        self.host = local_tcp_host(host or os.environ.get("FLSTUDIO_MCP_TCP_HOST", DEFAULT_TCP_HOST))
         self.port = int(port or os.environ.get("FLSTUDIO_MCP_TCP_PORT", DEFAULT_TCP_PORT))
         self.default_timeout = default_timeout
         self._lock = threading.Lock()

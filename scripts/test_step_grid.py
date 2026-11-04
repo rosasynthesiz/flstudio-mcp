@@ -54,6 +54,8 @@ class FakeBridge:
         self.dev = dev
 
     def call(self, command, params=None, timeout=None):
+        if command == 'get_project_state':
+            return {'project_token': self.dev._project_token(), 'project_loading': False}
         return self.dev._dispatch(command, params or {})
 
 
