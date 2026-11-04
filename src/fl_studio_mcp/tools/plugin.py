@@ -135,6 +135,22 @@ def _param_write(track: int, slot: int, idx: int, value: float) -> dict:
     }
 
 
+def filter_params_by_name(params, query, limit=50):
+    """Return params whose name contains ALL space-separated tokens in ``query``
+    (case-insensitive). Sorted by name; capped at ``limit``. PURE.
+
+    Essential for big generators (Serum/Vital expose hundreds of params) so the
+    caller can locate 'filter cutoff' / 'osc a level' without dumping everything.
+    """
+    toks = [t for t in str(query or "").lower().split() if t]
+    if not toks:
+        return []
+    hits = [p for p in params
+            if all(t in str(p.get("name", "")).lower() for t in toks)]
+    hits.sort(key=lambda p: str(p.get("name", "")).lower())
+    return hits[: max(1, int(limit))]
+
+
 def register(mcp: FastMCP) -> None:
     _RO = {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True}
     _WR = {"readOnlyHint": False, "destructiveHint": False,
@@ -153,7 +169,7 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool(annotations={"title": "Get plugin parameters", **_RO})
     def fl_plugin_get_params(
         track: Annotated[int, Field(ge=0)],
-        slot: Annotated[int, Field(ge=0, le=9, description="Effect slot index 0-9.")],
+        slot: Annotated[int, Field(ge=-1, le=9, description="Effect slot index 0-9.")],
     ) -> dict:
         """Every named parameter of the plugin in this slot: index, name,
         normalised value (0..1) and FL's display string (e.g. '3.6dB',
@@ -164,7 +180,7 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool(annotations={"title": "Set plugin parameter", **_WR})
     def fl_plugin_set_param(
         track: Annotated[int, Field(ge=0)],
-        slot: Annotated[int, Field(ge=0, le=9)],
+        slot: Annotated[int, Field(ge=-1, le=9)],
         param: Annotated[Union[int, str],
                          Field(description="Param index (int) or name (str, e.g. 'Decay time').")],
         value: Annotated[float, Field(ge=0.0, le=1.0, description="Normalised 0..1.")],
@@ -206,7 +222,7 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool(annotations={"title": "Set several plugin parameters", **_WR})
     def fl_plugin_set_params(
         track: Annotated[int, Field(ge=0)],
-        slot: Annotated[int, Field(ge=0, le=9)],
+        slot: Annotated[int, Field(ge=-1, le=9)],
         writes: Annotated[list[ParamWrite],
                           Field(min_length=1, max_length=_MAX_BATCH,
                                 description=f"1..{_MAX_BATCH} {{param, value}} "
@@ -262,3 +278,25 @@ def register(mcp: FastMCP) -> None:
         if any(r["verified"] is False for r in results):
             out["hint"] = _HINT
         return out
+
+    @mcp.tool(annotations={"title": "Find plugin parameters by name", **_RO})
+    def fl_plugin_find_params(
+        track: Annotated[int, Field(ge=0)],
+        slot: Annotated[int, Field(ge=-1, le=9,
+            description="Mixer-track effect slot 0-9, OR -1 for the channel-rack "
+                        "generator (then `track` is the CHANNEL index).")],
+        query: Annotated[str, Field(
+            description="Space-separated substrings; a param matches when ALL appear "
+                        "in its name (case-insensitive), e.g. 'filter cutoff'.")],
+        limit: Annotated[int, Field(ge=1, le=200, description="Max matches to return.")] = 50,
+    ) -> dict:
+        """Search a plugin/generator's parameters by name -- essential for big
+        synths (Serum/Vital expose hundreds of params) where a full dump is
+        unwieldy. Returns the matching {i,name,v,s} entries plus counts."""
+        dump = fetch_all_pages(get_bridge(), protocol.CMD_PLUGIN_GET_PARAMS, "params",
+                               {"track": track, "slot": slot})
+        params = dump.get("params", [])
+        matches = filter_params_by_name(params, query, limit)
+        return {"track": track, "slot": slot, "query": query,
+                "total_params": dump.get("total", len(params)),
+                "match_count": len(matches), "params": matches}

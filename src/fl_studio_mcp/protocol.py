@@ -267,3 +267,25 @@ def make_response_err(error: str, *, code: str = "error") -> dict:
 def system_label() -> str:
     """Short OS label, useful in heartbeats and logs."""
     return "%s %s" % (platform.system(), platform.release())
+
+CMD_PLAYLIST_TRACK_LIST = "playlist_track_list"
+
+CMD_PLAYLIST_GET_TRACK = "playlist_get_track"
+
+CMD_PLAYLIST_MUTE_TRACK = "playlist_mute_track"
+
+CMD_PLAYLIST_SOLO_TRACK = "playlist_solo_track"
+
+CMD_PLAYLIST_SET_NAME = "playlist_set_track_name"
+
+CMD_PLAYLIST_SET_COLOR = "playlist_set_track_color"
+
+CMD_ARRANGE_GET_SELECTION = "arrange_get_selection"
+
+CMD_ARRANGE_GET_MARKERS = "arrange_get_markers"
+
+CMD_CHANNEL_GET_GRID_BIT = "channel_get_grid_bit"
+
+CMD_CHANNEL_SET_GRID_BIT = "channel_set_grid_bit"
+
+CMD_CHANNEL_CLEAR_GRID = "channel_clear_grid"

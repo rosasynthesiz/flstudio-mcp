@@ -65,3 +65,6 @@ def fl_settings_dir() -> Path:
         if settings.is_dir():
             return settings
     return documents_dir() / "Image-Line" / "FL Studio" / "Settings"
+
+def find_piano_roll_scripts_dir():
+    return os.environ.get('FLSTUDIO_MCP_PIANO_ROLL_SCRIPTS') or str(fl_settings_dir() / 'Piano roll scripts')
