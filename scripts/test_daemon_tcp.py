@@ -45,6 +45,8 @@ def connect(proc, timeout=20.0):
 def main() -> int:
     env = dict(os.environ, FLSTUDIO_MCP_TCP_PORT=str(PORT),
                PYTHONPATH=str(ROOT / "src") + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    if len(sys.argv) > 1:
+        env.pop("PYTHONPATH", None)  # installed-command check must execute the installed package
     cmd = sys.argv[1:] or [sys.executable, "-c", "from fl_studio_mcp.daemon import main; main()"]
     print("daemon:", " ".join(cmd))
     log = tempfile.TemporaryFile()

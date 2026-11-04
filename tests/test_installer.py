@@ -73,3 +73,18 @@ def test_installer_refuses_while_daemon_runs():
         assert "daemon is running" in run.stdout, "installer didn't say the daemon is running"
     finally:
         subprocess.run(["taskkill", "/T", "/F", "/PID", str(daemon.pid)], capture_output=True)
+
+@needs_log
+def test_installed_runtime_contains_candidate_source(tmp_path):
+    import hashlib
+    import json
+    manifest = json.loads((ROOT / '.flmcp-runtime.json').read_text(encoding='utf-8'))
+    code = ('import hashlib,json,pathlib,fl_studio_mcp.safety as s; '
+            'p=pathlib.Path(s.__file__); '
+            'print(json.dumps({"path":str(p),"sha256":hashlib.sha256(p.read_bytes()).hexdigest()}))')
+    result = subprocess.run([manifest['python'], '-I', '-c', code], cwd=tmp_path,
+                            capture_output=True, text=True, check=True, timeout=30)
+    data = json.loads(result.stdout)
+    assert Path(data['path']).is_relative_to(ROOT / '.runtimes')
+    expected = hashlib.sha256((ROOT / 'src/fl_studio_mcp/safety.py').read_bytes()).hexdigest()
+    assert data['sha256'] == expected, 'installed safety package is not this candidate'
