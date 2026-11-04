@@ -150,7 +150,16 @@ class _Handler(socketserver.StreamRequestHandler):
                     resp = {"ok": False, "exc": "Error", "error": "bad json: %s" % e}
                 else:
                     resp = _handle_request(req)
-                self.wfile.write((json.dumps(resp) + "\n").encode("utf-8"))
+                try:
+                    body = json.dumps(protocol.sanitize_for_json(resp), allow_nan=False)
+                except ValueError as e:
+                    # The command has already run. Report the invalid result
+                    # without changing values to null or replaying the write.
+                    body = json.dumps({
+                        "ok": False, "exc": "FLCommandFailed", "code": "invalid_result",
+                        "error": "%s. Command may have applied; inspect state before retrying." % e,
+                    }, allow_nan=False)
+                self.wfile.write((body + "\n").encode("utf-8"))
                 self.wfile.flush()
         except Exception:  # pragma: no cover - defensive
             logger.exception("handler error")

@@ -34,6 +34,7 @@ Dependencies inside FL Studio:
 import base64
 import json
 import math
+import sys
 import time
 
 # FL Studio's built-in API modules. These are NOT importable outside FL.
@@ -171,7 +172,7 @@ def _handle_request_sysex(event, source):
 
     try:
         result = _dispatch(command, params)
-        payload = {"v": PROTOCOL_VERSION, "ok": True, "data": result}
+        payload = {"v": PROTOCOL_VERSION, "ok": True, "data": _sanitize_for_json(result)}
     except _ClientError as e:
         payload = {"v": PROTOCOL_VERSION, "ok": False, "error": str(e), "code": e.code}
     except Exception as e:
@@ -204,12 +205,31 @@ def OnRefresh(flags):
 # SysEx encode / decode -- mirrors src/fl_studio_mcp/protocol.py
 # ---------------------------------------------------------------------------
 
+def _nz(value):
+    return 0.0 if value == 0.0 else value
+
+
+def _sanitize_for_json(value):
+    # FL's sandbox cannot import fl_studio_mcp.protocol. Keep this in sync
+    # with sanitize_for_json there; both encoders have the same regression tests.
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("Non-finite result; command may have applied. Inspect state before retrying.")
+        return _nz(value)
+    if isinstance(value, dict):
+        return {key: _sanitize_for_json(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_for_json(item) for item in value]
+    return value
+
+
 def _encode_message(direction, request_id, payload):
     # Returns the SysEx bytes WITHOUT F0/F7 framing (caller adds them).
     rid = request_id.encode("ascii")
     if len(rid) != REQUEST_ID_LEN:
         rid = (rid + b"00000000")[:REQUEST_ID_LEN]
-    body_json = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
+    body_json = json.dumps(_sanitize_for_json(payload), ensure_ascii=True,
+                           separators=(",", ":"), allow_nan=False)
     body_b64 = base64.b64encode(body_json.encode("ascii"))
     out = bytearray()
     out.append(SYSEX_MANUFACTURER)
@@ -304,7 +324,7 @@ def _tempo_scale():
 
 def _h_get_tempo(params):
     raw = mixer.getCurrentTempo()
-    return {"bpm": raw / _tempo_scale(), "raw": raw}
+    return {"bpm": _nz(raw / _tempo_scale()), "raw": raw}
 
 
 def _h_set_tempo(params):
@@ -368,8 +388,8 @@ def _h_get_song_pos(params):
     return {
         "position_ms": ms,
         "position_ticks": ticks,
-        "position_beats": beats,
-        "bpm": bpm,
+        "position_beats": _nz(beats),
+        "bpm": _nz(bpm),
     }
 
 
@@ -454,7 +474,7 @@ def _mixer_track_dict(i):
     return {
         "i": i,
         "name": mixer.getTrackName(i),
-        "pan": round(mixer.getTrackPan(i), 4),
+        "pan": _nz(round(mixer.getTrackPan(i), 4)),
         "mute": bool(mixer.isTrackMuted(i)),
         "solo": bool(mixer.isTrackSolo(i)),
         "color": _color_out(_safe_track_color(i)),
@@ -464,7 +484,7 @@ def _mixer_track_dict(i):
 
 def _mixer_list_entry(i):
     name, cut = _truncate_name(mixer.getTrackName(i))
-    e = {"i": i, "name": name, "pan": round(mixer.getTrackPan(i), 4),
+    e = {"i": i, "name": name, "pan": _nz(round(mixer.getTrackPan(i), 4)),
          "mute": bool(mixer.isTrackMuted(i)), "solo": bool(mixer.isTrackSolo(i)),
          **_vol_out(mixer.getTrackVolume(i))}
     if cut:
@@ -488,7 +508,7 @@ def _channel_dict(i):
     return {
         "i": i,
         "name": channels.getChannelName(i),
-        "pan": round(channels.getChannelPan(i), 4),
+        "pan": _nz(round(channels.getChannelPan(i), 4)),
         "mute": bool(channels.isChannelMuted(i)),
         "solo": bool(channels.isChannelSolo(i)),
         "target_fx_track": tgt,
@@ -499,7 +519,7 @@ def _channel_dict(i):
 
 def _channel_list_entry(i):
     name, cut = _truncate_name(channels.getChannelName(i))
-    e = {"i": i, "name": name, "pan": round(channels.getChannelPan(i), 4),
+    e = {"i": i, "name": name, "pan": _nz(round(channels.getChannelPan(i), 4)),
          "mute": bool(channels.isChannelMuted(i)),
          "solo": bool(channels.isChannelSolo(i)),
          **_vol_out(channels.getChannelVolume(i))}
@@ -534,7 +554,7 @@ def _norm_to_db(norm):
 def _vol_out(norm):
     # Unified volume representation used by EVERY volume-bearing response
     # (reads + writes, mixer + channel): normalized 0..1 and dB (0.8 = unity).
-    return {"vol_norm": round(norm, 4), "vol_db": round(_norm_to_db(norm), 2)}
+    return {"vol_norm": _nz(round(norm, 4)), "vol_db": _nz(round(_norm_to_db(norm), 2))}
 
 
 def _resolve_vol(p):
@@ -557,7 +577,7 @@ def _h_mixer_set_volume(p):
 def _h_mixer_set_pan(p):
     t = int(p["track"])
     mixer.setTrackPan(t, _clamp_pan(p["value"]))
-    return {"track": t, "pan": round(mixer.getTrackPan(t), 4)}
+    return {"track": t, "pan": _nz(round(mixer.getTrackPan(t), 4))}
 
 
 def _h_mixer_set_mute(p):
@@ -594,7 +614,7 @@ def _h_channel_set_volume(p):
 def _h_channel_set_pan(p):
     c = int(p["channel"])
     channels.setChannelPan(c, _clamp_pan(p["value"]))
-    return {"channel": c, "pan": round(channels.getChannelPan(c), 4)}
+    return {"channel": c, "pan": _nz(round(channels.getChannelPan(c), 4))}
 
 
 def _h_channel_set_mute(p):
@@ -602,6 +622,28 @@ def _h_channel_set_mute(p):
     if bool(channels.isChannelMuted(c)) != bool(p["state"]):
         channels.muteChannel(c)
     return {"channel": c, "mute": bool(channels.isChannelMuted(c))}
+
+
+def _grid_args(p):
+    c = int(p["channel"])
+    n = max(1, min(int(p.get("length", 16)), 256))
+    return c, n
+
+
+def _h_channel_get_grid(p):
+    """Step-sequencer steps that are on, in the current pattern. Thin read."""
+    c, n = _grid_args(p)
+    on = [i for i in range(n) if channels.getGridBit(c, i)]
+    return {"channel": c, "length": n, "steps": on, "pattern": patterns.patternNumber()}
+
+
+def _h_channel_set_grid(p):
+    """Set exactly the given steps on (all others off) for 0..length-1."""
+    c, n = _grid_args(p)
+    want = set(int(s) for s in p.get("steps", []) if 0 <= int(s) < n)
+    for i in range(n):
+        channels.setGridBit(c, i, 1 if i in want else 0)
+    return _h_channel_get_grid(p)
 
 
 def _h_channel_set_solo(p):
@@ -694,6 +736,30 @@ def _h_plugin_list(p):
     return {"track": track, "slots": slots}
 
 
+_EMPHASIZER_PARAM_NAME_REPAIRS = {
+    "杈撳叆澧炵泭": "输入增益",
+    "鐢靛钩鍖归厤": "电平匹配",
+    "鏃佽矾": "旁路",
+    "杈撳嚭澧炵泭": "输出增益",
+}
+
+
+def _plugin_param_name(index, track, slot):
+    name = plugins.getParamName(index, track, slot)
+    # Successful GBK -> UTF-8 decoding is not proof of mojibake: correct
+    # short labels such as "湿" and "L路" can also round-trip to different text.
+    # Repair only the exact Windows/Emphasizer cases verified in FL.
+    if sys.platform != "win32" or name not in _EMPHASIZER_PARAM_NAME_REPAIRS:
+        return name
+    try:
+        plugin = plugins.getPluginName(track, slot)
+    except Exception:
+        return name
+    if str(plugin).casefold() == "emphasizer":
+        return _EMPHASIZER_PARAM_NAME_REPAIRS[name]
+    return name
+
+
 def _h_plugin_get_params(p):
     track = int(p["track"])
     slot = int(p["slot"])
@@ -705,7 +771,7 @@ def _h_plugin_get_params(p):
     i = start
     scanned = 0
     while i < total and scanned < 150:        # cap scan/page (bounds VST 4240 cost)
-        nm = plugins.getParamName(i, track, slot)
+        nm = _plugin_param_name(i, track, slot)
         cur = i
         i += 1
         scanned += 1
@@ -733,7 +799,7 @@ def _h_plugin_get_param(p):
         raise _ClientError("no plugin at track %d slot %d" % (track, slot))
     return {
         "track": track, "slot": slot, "param": idx,
-        "name": plugins.getParamName(idx, track, slot),
+        "name": _plugin_param_name(idx, track, slot),
         "v": round(plugins.getParamValue(idx, track, slot), 4),
         "s": (plugins.getParamValueString(idx, track, slot) or ""),
     }
@@ -749,7 +815,7 @@ def _h_plugin_set_param(p):
     plugins.setParamValue(val, idx, track, slot)
     return {
         "track": track, "slot": slot, "param": idx,
-        "name": plugins.getParamName(idx, track, slot),
+        "name": _plugin_param_name(idx, track, slot),
         "v": round(plugins.getParamValue(idx, track, slot), 4),
         "s": (plugins.getParamValueString(idx, track, slot) or ""),
     }
@@ -1201,6 +1267,8 @@ def _h_ensure_piano_roll(p):
         return out
     try:
         ui.showWindow(wid)
+        if hasattr(ui, "setFocused"):
+            ui.setFocused(wid)   # Ctrl+Alt+Y only fires when the Piano roll is the active panel
         out["ok"] = True
         out["method"] = "ui.showWindow(widPianoRoll)"
     except Exception as e:
@@ -1217,8 +1285,24 @@ def _h_channel_select(p):
         channels.selectOneChannel(idx)
     except Exception as e:
         return {"ok": False, "error": "selectOneChannel: %s" % e}
+    # selectOneChannel alone does not retarget an already-open Piano roll;
+    # reopening it does (verified FL 26.1.4).
+    wid = getattr(midi, "widPianoRoll", None)
+    reopened = False
+    if (wid is not None and hasattr(ui, "getVisible")
+            and hasattr(ui, "hideWindow") and hasattr(ui, "showWindow")):
+        try:
+            # Preserve closed windows and older APIs whose visibility is unknown.
+            if ui.getVisible(wid):
+                ui.hideWindow(wid)
+                ui.showWindow(wid)
+                if hasattr(ui, "setFocused"):
+                    ui.setFocused(wid)
+                reopened = True
+        except Exception:
+            reopened = False
     return {"ok": True, "channel": idx, "name": channels.getChannelName(idx),
-            "selected": channels.channelNumber()}
+            "selected": channels.channelNumber(), "piano_roll_retargeted": reopened}
 
 
 def _h_arrange_add_marker(p):
@@ -1290,4 +1374,6 @@ _HANDLERS = {
     "channel_select": _h_channel_select,
     "ensure_piano_roll": _h_ensure_piano_roll,
     "pattern_list": _h_pattern_list,
+    "channel_get_grid": _h_channel_get_grid,
+    "channel_set_grid": _h_channel_set_grid,
 }

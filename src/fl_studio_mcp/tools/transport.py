@@ -12,7 +12,7 @@ from typing import Annotated
 from fastmcp import FastMCP
 from pydantic import Field
 
-from .. import protocol
+from .. import protocol, safety
 from ..connection import FLCommandFailed, FLNotRunning, FLTimeout, get_bridge
 
 
@@ -94,6 +94,8 @@ def register(mcp: FastMCP) -> None:
     ) -> dict:
         """Set the FL Studio project tempo. Range is 10-999 BPM (FL's own limits)."""
         data = _safe_call(protocol.CMD_SET_TEMPO, {"bpm": float(bpm)})
+        if data.get("dry_run"):
+            return data
         return {"bpm": data["bpm"]}
 
     @mcp.tool(
@@ -190,6 +192,12 @@ def register(mcp: FastMCP) -> None:
 
 def _safe_call(command: str, params: dict | None = None):
     """Call the bridge and translate transport errors into MCP-friendly messages."""
+    if command in (protocol.CMD_SET_TEMPO, protocol.CMD_SET_SONG_POS,
+                   protocol.CMD_PLAY, protocol.CMD_STOP, protocol.CMD_TOGGLE_PLAY,
+                   protocol.CMD_RECORD):
+        preview = safety.preview_write(tool=command, command=command, params=params)
+        if preview is not None:
+            return preview
     try:
         return get_bridge().call(command, params)
     except FLNotRunning as e:

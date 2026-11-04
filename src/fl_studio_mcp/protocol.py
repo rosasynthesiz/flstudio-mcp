@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import os
 import platform
 import secrets
@@ -108,6 +109,8 @@ CMD_CHANNEL_SET_VOLUME = "channel_set_volume"
 CMD_CHANNEL_SET_PAN = "channel_set_pan"
 CMD_CHANNEL_SET_MUTE = "channel_set_mute"
 CMD_CHANNEL_SET_SOLO = "channel_set_solo"
+CMD_CHANNEL_GET_GRID = "channel_get_grid"    # step-sequencer steps of the current pattern
+CMD_CHANNEL_SET_GRID = "channel_set_grid"
 CMD_CHANNEL_SELECT = "channel_select"
 
 # Patterns (Phase 3)
@@ -180,6 +183,19 @@ def new_request_id() -> str:
     return "".join(secrets.choice(REQUEST_ID_ALPHABET) for _ in range(REQUEST_ID_LEN))
 
 
+def sanitize_for_json(value):
+    """Canonicalize signed zero; reject non-finite numbers without losing data."""
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("Non-finite number in FL Studio response")
+        return 0.0 if value == 0.0 else value
+    if isinstance(value, dict):
+        return {key: sanitize_for_json(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [sanitize_for_json(item) for item in value]
+    return value
+
+
 def encode_message(direction: int, request_id: str, payload: dict) -> bytes:
     """Build the SysEx payload bytes (everything between F0 and F7).
 
@@ -191,7 +207,8 @@ def encode_message(direction: int, request_id: str, payload: dict) -> bytes:
     if len(rid) != REQUEST_ID_LEN or any(b > 0x7F for b in rid):
         raise ValueError("Bad request id: %r" % request_id)
 
-    body_json = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
+    body_json = json.dumps(sanitize_for_json(payload), ensure_ascii=True,
+                           separators=(",", ":"), allow_nan=False)
     body_b64 = base64.b64encode(body_json.encode("ascii"))
 
     out = bytearray()
@@ -240,7 +257,7 @@ def make_request(command: str, params: dict | None = None) -> dict:
 
 
 def make_response_ok(data) -> dict:
-    return {"v": PROTOCOL_VERSION, "ok": True, "data": data}
+    return {"v": PROTOCOL_VERSION, "ok": True, "data": sanitize_for_json(data)}
 
 
 def make_response_err(error: str, *, code: str = "error") -> dict:

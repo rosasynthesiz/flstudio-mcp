@@ -15,7 +15,7 @@ from typing import Annotated, List, Optional
 from fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
-from .. import protocol
+from .. import protocol, safety
 from ..connection import get_bridge
 
 
@@ -27,6 +27,11 @@ class RagaNote(BaseModel):
 
 
 def _write(notes, channel, mode):
+    preview = safety.preview_write(tool="write_raga_notes", params={
+        "notes": [n.model_dump() for n in notes], "channel": channel, "mode": mode,
+    })
+    if preview is not None:
+        return preview
     bridge = get_bridge()
     sel = None
     if channel is not None:
@@ -55,8 +60,12 @@ def register(mcp: FastMCP) -> None:
         raga's allowed swaras); this tool only selects the channel + writes. SHOW
         the user the notes/swaras BEFORE calling. Needs the Piano roll open +
         MCP_Apply armed once this session (see the note-bridge setup)."""
+        result = _write(notes, channel, mode)
+        if result.get("dry_run"):
+            result["planned"].update(raga=raga, root=root)
+            return result
         return {"ok": True, "wrote": len(notes), "raga": raga, "root": root,
-                "channel": channel, "bridge": _write(notes, channel, mode)}
+                "channel": channel, "bridge": result}
 
     @mcp.tool(annotations={"title": "Write raga/scale CHORDS", **_WR})
     def fl_write_raga_chords(
@@ -70,5 +79,9 @@ def register(mcp: FastMCP) -> None:
         the selected channel via the bridge. YOU stack chord tones drawn from the
         raga/scale (give simultaneous notes the SAME time_bars). Tool selects the
         channel + writes. SHOW the user the chords BEFORE calling."""
+        result = _write(notes, channel, mode)
+        if result.get("dry_run"):
+            result["planned"].update(raga=raga, root=root)
+            return result
         return {"ok": True, "wrote": len(notes), "raga": raga, "root": root,
-                "channel": channel, "bridge": _write(notes, channel, mode)}
+                "channel": channel, "bridge": result}

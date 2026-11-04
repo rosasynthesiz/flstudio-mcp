@@ -27,6 +27,21 @@ This is the orchestration layer. Deep content lives in `references/`.
 | Mixer levels | `fl_mixer_set_volume`, `_set_pan` (Phase 2) |
 | Melody in a raga | `fl_preset_write_raga_melody` (Phase 6) which calls Piano Roll under the hood |
 | Kuthu beat | `fl_preset_write_kuthu_pattern` (Phase 6) |
+| Read a plugin's knobs | `fl_plugin_list`, `fl_plugin_get_params` (names + normalised 0..1 values) |
+| Change one knob | `fl_plugin_set_param` — answers `verified` / `attempts`; a `hint` means FL refused the value |
+| Change several knobs of one plugin | `fl_plugin_set_params` — one paced burst, ONE undo step; prefer it over repeating the single tool |
+
+### Plugin parameter recipe
+
+Trust `verified`, not the request. Measured on FL 26 with Fruity Parametric
+EQ 2: levels and gains take an arbitrary 0..1 value; stepped parameters
+(filter types, orders, selectors) snap to their own grid, so an off-grid
+request comes back `verified: false` with the snapped value in `after`; some
+parameters (band widths) ignore writes entirely. An open plugin window
+(pickup mode) did not block script writes in our test. Values are the
+normalised 0..1 domain shown by `fl_plugin_get_params` — read the display
+string (`3.6dB`, `500Hz`) to know what a value means, and prefer
+`fl_plugin_set_params` for 2+ knobs (one undo step).
 
 ## When something fails
 
