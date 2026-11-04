@@ -1,0 +1,49 @@
+name: Native MIDI review evidence
+on:
+  pull_request:
+    paths:
+      - .github/workflows/native-midi-review.yml
+      - scripts/review_native_midi.py
+      - scripts/review_pr11_safety.patch
+permissions:
+  contents: read
+jobs:
+  native-midi:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/pull/11/head
+          path: candidate
+      - name: Verify exact reviewed contributor head and apply local safety corrections
+        shell: bash
+        run: |
+          test "$(git -C candidate rev-parse HEAD)" = c533ee65df6cafe8554a4b8125384f870444570c
+          git -C candidate apply ../scripts/review_pr11_safety.patch
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install mido python-rtmidi pytest
+      - name: Fake backend safety contracts
+        env:
+          PYTHONPATH: candidate/src
+        run: python -m pytest candidate/tests/test_virtual_port_review.py -q
+      - name: Real CoreMIDI or ALSA probe
+        shell: bash
+        env:
+          PYTHONPATH: candidate/src
+        run: |
+          set +e
+          python scripts/review_native_midi.py
+          code=$?
+          if [ "$code" = 77 ]; then
+            echo "::warning::Native sequencer unavailable; this is missing evidence, not a native pass."
+            exit 0
+          fi
+          exit "$code"
