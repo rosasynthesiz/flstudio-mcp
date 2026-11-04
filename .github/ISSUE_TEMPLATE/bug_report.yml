@@ -1,0 +1,59 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report this! Please fill in as much as you can.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start the daemon
+        2. Ask Claude to ...
+        3. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows 11, Windows 10, macOS, Linux, Other]
+    validations:
+      required: true
+  - type: input
+    id: fl-version
+    attributes:
+      label: FL Studio version and edition
+      placeholder: e.g. Producer Edition 26.1.7 [build 5419]
+    validations:
+      required: true
+  - type: input
+    id: mcp-version
+    attributes:
+      label: flstudio-mcp version / commit
+      placeholder: e.g. 1.0.0 from PyPI, or main @ ba94a6d
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: e.g. 3.12.4
+  - type: dropdown
+    id: client
+    attributes:
+      label: MCP client
+      options: [Claude Desktop, Cursor, Other]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / tool output
+      description: Daemon output, MCP tool response, FL script output window. Will be rendered as code.
+      render: text

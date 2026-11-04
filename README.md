@@ -2,7 +2,7 @@
 
 **Control FL Studio with Claude: AI mixing, composition, and mix diagnosis through natural language.**
 
-![version](https://img.shields.io/badge/version-1.0.0-blue)
+[![PyPI](https://img.shields.io/pypi/v/fl-studio-mcp)](https://pypi.org/project/fl-studio-mcp/)
 ![status](https://img.shields.io/badge/status-beta-yellow)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![python](https://img.shields.io/badge/python-3.10+-blue)
@@ -20,6 +20,17 @@ flstudio-mcp is a Model Context Protocol (MCP) server that lets Claude (Claude C
 It is genre- and producer-agnostic: nothing about it assumes a particular style of music.
 
 ## Quickstart
+
+For a new FL Studio setup, clone the repository so the controller and installer
+scripts are available:
+
+```bash
+git clone https://github.com/rosasynthesiz/flstudio-mcp.git
+cd flstudio-mcp
+```
+
+Then run the installer for your OS. It installs the server into its environment,
+copies the FL controller, and seeds the note bridge:
 
 ```bat
 :: first: in loopMIDI, create two ports named exactly "FLStudioMCP RX" and "FLStudioMCP TX"
@@ -39,6 +50,16 @@ language:
 > "Scan my mix and tell me what's wrong." — "Set up a vocal chain from my plugins." — "Export this arrangement to MIDI."
 
 Full setup is below.
+
+For an environment whose FL controller and MIDI bridge are already configured,
+the server package is also available from PyPI:
+
+```bash
+python -m pip install fl-studio-mcp
+```
+
+The PyPI package does not replace the controller/port setup above. The current
+`main` branch may contain changes that have not yet been released to PyPI.
 
 ## Capabilities
 
