@@ -101,7 +101,7 @@ def test_batch_is_one_rollback_unit_with_per_write_verify(fake_bridge, changelog
     assert entries[0]["group"] is True
     assert len(entries[0]["restores"]) == 2
 
-    fake_bridge.replies[protocol.CMD_PLUGIN_GET_PARAM] = [{"v": 0.2}, {"v": 0.1}]
+    fake_bridge.replies[protocol.CMD_PLUGIN_GET_PARAM] = [{"v": 0.2}, {"v": 0.1}, {"v": 0.2}, {"v": 0.1}]
     assert safety.rollback_last_change(fake_bridge)["ok"]
     restored = fake_bridge.calls_to(protocol.CMD_PLUGIN_SET_PARAM)[-2:]
     assert [p["param"] for p in restored] == [7, 5]

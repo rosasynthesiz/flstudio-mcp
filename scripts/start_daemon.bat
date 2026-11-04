@@ -6,8 +6,11 @@ if not exist "%FLMCP_MANIFEST%" (
   echo Run scripts\install_windows.bat first.
   exit /b 1
 )
-for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "(Get-Content -LiteralPath $env:FLMCP_MANIFEST -Raw ^| ConvertFrom-Json).daemon"`) do set "DAEMON=%%D"
-for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "(Get-Content -LiteralPath $env:FLMCP_MANIFEST -Raw ^| ConvertFrom-Json).settings"`) do set "FL_SETTINGS=%%D"
+set "DAEMON="
+set "FL_SETTINGS="
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "(ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($env:FLMCP_MANIFEST))).daemon"`) do set "DAEMON=%%D"
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "(ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($env:FLMCP_MANIFEST))).settings"`) do set "FL_SETTINGS=%%D"
 if not defined DAEMON exit /b 1
+if not defined FL_SETTINGS exit /b 1
 "%DAEMON%"
 exit /b %errorlevel%

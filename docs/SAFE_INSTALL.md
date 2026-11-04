@@ -70,7 +70,9 @@ refuses snapshot writes until upgraded. Old history without identity is retained
 but never replayed automatically.
 
 Undo checks project identity, restores in reverse order, and independently
-reads each scope. A refused, failed, uncertain or mismatched restore retains the
+reads the fields owned by each restore command. Unrelated manual edits are
+preserved. Group undo also verifies the combined restored fields at the end,
+so a later restore cannot silently invalidate an earlier one. A refused, failed, uncertain or mismatched restore retains the
 entry and returns `ok: false`; a setter echo alone never clears history. Retry
 only after inspecting state. Multi-item undo can partially restore before a
 later failure; it is not an atomic DAW transaction. The original recovery entry

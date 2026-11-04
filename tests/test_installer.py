@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import socket
 import subprocess
 import sys
 import time
@@ -62,9 +63,22 @@ def test_installer_refuses_while_daemon_runs():
     cmd = shlex.split(os.environ.get("FLMCP_DAEMON_CMD", ""), posix=False)
     if not cmd:
         pytest.skip("set FLMCP_DAEMON_CMD")
-    daemon = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    daemon = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              env=dict(os.environ, FLSTUDIO_MCP_TCP_PORT=str(port)))
     try:
-        time.sleep(3)
+        deadline = time.monotonic() + 20
+        ready = False
+        while time.monotonic() < deadline and daemon.poll() is None:
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=.5):
+                    ready = True
+                    break
+            except OSError:
+                time.sleep(.1)
+        assert ready, "daemon launcher did not reach a listening state; guard test cannot proceed"
         run = subprocess.run(["cmd", "/c", str(ROOT / "scripts" / "install_windows.bat")],
                              capture_output=True, text=True, errors="replace", timeout=300,
                              env=dict(os.environ, FLMCP_EXTRAS="none"), cwd=ROOT)

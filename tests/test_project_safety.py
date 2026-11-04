@@ -176,3 +176,85 @@ def test_failed_project_load_stays_guarded(controller):
     assert controller._project_loading
     with pytest.raises(controller._ClientError):
         controller._dispatch('ping', {'_project_token': controller._project_token()})
+
+def test_grouped_fields_on_same_scope_can_restore_and_retry(changelog):
+    class MultiField:
+        def __init__(self):
+            self.state = {'mute': True, 'solo': True, 'name': 'original'}
+            self.refuse_mute_restore = False
+            self.writes = []
+
+        def call(self, command, params):
+            if command == 'get_project_state':
+                return {'project_token': 'same-project', 'project_loading': False}
+            if command == 'mixer_get_track':
+                return dict(self.state)
+            field = 'mute' if command == 'mixer_set_mute' else 'solo'
+            self.writes.append((field, params['state']))
+            if not (field == 'mute' and params['state'] and self.refuse_mute_restore):
+                self.state[field] = params['state']
+            return dict(self.state)
+
+    bridge = MultiField()
+    writes = [dict(snap_scope='mixer_track:1', command=f'mixer_set_{field}',
+                   params={'track': 1, 'state': False},
+                   restore=lambda before, f=field: {'command': f'mixer_set_{f}',
+                       'params': {'track': 1, 'state': before[f]}}) for field in ('mute', 'solo')]
+    safety.safe_write_group(bridge, tool='clear_mute_solo', scope='mixer', writes=writes)
+    bridge.state['name'] = 'manual edit'
+    bridge.refuse_mute_restore = True
+    result = safety.rollback_last_change(bridge)
+    assert result['ok'] is False and result['undo_retained']
+    assert bridge.state == {'mute': False, 'solo': True, 'name': 'manual edit'}
+    assert bridge.writes[-2:] == [('solo', True), ('mute', True)]
+    assert len(changelog.recent()[0]['restores']) == 2
+    bridge.refuse_mute_restore = False
+    assert safety.rollback_last_change(bridge)['ok'] is True
+    assert bridge.state == {'mute': True, 'solo': True, 'name': 'manual edit'}
+    assert not changelog.recent()
+
+
+def test_single_field_undo_preserves_unrelated_manual_edit(changelog):
+    class Track:
+        state = {'mute': False, 'name': 'original'}
+        def call(self, command, params):
+            if command == 'get_project_state':
+                return {'project_token': 'track-project', 'project_loading': False}
+            if command == 'mixer_set_mute':
+                self.state['mute'] = params['state']
+            return dict(self.state)
+    bridge = Track()
+    safety.safe_write(bridge, tool='mute', scope='mixer_track:1', command='mixer_set_mute',
+        params={'track': 1, 'state': True}, build_restore=lambda before: {
+            'command': 'mixer_set_mute', 'params': {'track': 1, 'state': before['mute']}})
+    bridge.state['name'] = 'manual edit'
+    assert safety.rollback_last_change(bridge)['ok'] is True
+    assert bridge.state == {'mute': False, 'name': 'manual edit'}
+
+def test_group_final_readback_catches_later_restore_side_effect(changelog):
+    class Coupled:
+        def __init__(self):
+            self.state = {'mute': True, 'solo': True}
+            self.coupled = False
+        def call(self, command, params):
+            if command == 'get_project_state':
+                return {'project_token': 'coupled', 'project_loading': False}
+            if command != 'mixer_get_track':
+                field = 'mute' if command == 'mixer_set_mute' else 'solo'
+                self.state[field] = params['state']
+                if self.coupled and field == 'mute' and params['state']:
+                    self.state['solo'] = False
+            return dict(self.state)
+    bridge = Coupled()
+    writes = [dict(snap_scope='mixer_track:1', command=f'mixer_set_{field}',
+                   params={'state': False}, restore=lambda b, f=field: {
+                       'command': f'mixer_set_{f}', 'params': {'state': b[f]}})
+              for field in ('mute', 'solo')]
+    safety.safe_write_group(bridge, tool='coupled', scope='mixer', writes=writes)
+    bridge.coupled = True
+    result = safety.rollback_last_change(bridge)
+    assert result['ok'] is False and 'Final restoration' in result['error']
+    assert changelog.recent()
+    bridge.coupled = False
+    assert safety.rollback_last_change(bridge)['ok'] is True
+    assert bridge.state == {'mute': True, 'solo': True} and not changelog.recent()

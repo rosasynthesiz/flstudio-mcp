@@ -426,6 +426,31 @@ def _snapshot_matches(actual, expected):
     return actual == expected
 
 
+def _restore_expectation(restore, before):
+    """Verify fields owned by this command, preserving unrelated manual edits.
+
+    A group can change several fields in one snapshot scope. Comparing the
+    entire scope after its first restore would prevent later restores running.
+    Unknown commands keep the conservative full-snapshot verification.
+    """
+    fields = {
+        "plugin_set_param": ("v",),
+        "channel_set_grid": ("steps",),
+        "mixer_set_route": ("enabled",),
+    }
+    for target in ("mixer", "channel"):
+        for command, field in (("volume", "vol_norm"), ("pan", "pan"),
+                               ("mute", "mute"), ("solo", "solo"),
+                               ("name", "name"), ("color", "color")):
+            fields[f"{target}_set_{command}"] = (field,)
+    owned = fields.get(restore["command"])
+    if owned is None:
+        return before
+    if not isinstance(before, dict) or any(field not in before for field in owned):
+        raise RuntimeError("Restore snapshot is missing the command's original fields")
+    return {field: before[field] for field in owned}
+
+
 @_serialized
 def rollback_last_change(bridge):
     preview = preview_write(tool="rollback_last_change")
@@ -444,18 +469,27 @@ def rollback_last_change(bridge):
         if not restores or any(not r for r in restores):
             raise RuntimeError("entry has no restore action")
         restored = []
+        final_checks = {}
         # Reverse order also handles repeated writes to the same target.
         for i in reversed(range(len(restores))):
             r = restores[i]
+            scope = entry["snap_scopes"][i] if entry.get("group") else entry["scope"]
+            before = entry["befores"][i] if entry.get("group") else entry["before"]
+            expected = _restore_expectation(r, before)
             result = bridge.call(r["command"], r.get("params") or {})
             if isinstance(result, dict) and result.get("ok") is False:
                 raise RuntimeError("Controller refused restoration: %s" % result)
-            scope = entry["snap_scopes"][i] if entry.get("group") else entry["scope"]
-            before = entry["befores"][i] if entry.get("group") else entry["before"]
             after = take_snapshot(bridge, scope)
-            if not _snapshot_matches(after, before):
+            if not _snapshot_matches(after, expected):
                 raise RuntimeError("Restoration readback did not match original; undo retained")
+            final_checks.setdefault(scope, {}).update(expected)
             restored.append(after)
+        # Later restore commands may affect a field already restored earlier.
+        # Verify their combined owned fields before forgetting the group.
+        if entry.get("group"):
+            for scope, expected in final_checks.items():
+                if not _snapshot_matches(take_snapshot(bridge, scope), expected):
+                    raise RuntimeError("Final restoration readback did not match; undo retained")
         _log.replace_last(None)  # only forget after every independent read succeeds
         return {"ok": True, "rolled_back": entry.get("tool"),
                 "scope": entry.get("scope"),
