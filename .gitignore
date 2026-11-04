@@ -39,3 +39,11 @@ htmlcov/
 
 # Bridge runtime data (don't commit the queue)
 flstudio_mcp_bridge/
+
+# Isolated installer runtimes, recovery data and local validation
+.runtimes/
+.install-backups/
+.flmcp-runtime.json
+.flmcp-install.lock
+.test-tmp*/
+validation-*.log

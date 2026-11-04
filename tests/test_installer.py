@@ -44,15 +44,16 @@ def test_mcp_apply_seeded():
 @needs_log
 def test_port_check_ran():
     log = _log().lower()                  # Windows says MISSING, macOS says Missing
-    assert "missing ports" in log or "all required ports present" in log, \
+    assert '"missing_ports"' in log or "all required ports present" in log, \
         "installer log has no port check result"
 
 
 @needs_log
 def test_chords_ready():
-    if "Audio to MIDI not installed" in _log():
+    if "audio-chords" not in _log().split("Optional audio features:")[-1]:
         pytest.skip("installed without audio to MIDI")
-    assert "Chords to MIDI: ready" in _log(), "installer log doesn't say 'Chords to MIDI: ready'"
+    from fl_studio_mcp.tools.audio import chords_available
+    assert chords_available(), "installed chords package/model is not available"
 
 
 @needs_log

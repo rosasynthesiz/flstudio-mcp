@@ -53,7 +53,7 @@ from .connection import (
     FLPortMissing,
     FLTimeout,
 )
-from .connection import DEFAULT_TCP_HOST, DEFAULT_TCP_PORT
+from .connection import DEFAULT_TCP_HOST, DEFAULT_TCP_PORT, local_tcp_host
 
 
 logger = logging.getLogger("fl_studio_mcp.daemon")
@@ -79,6 +79,8 @@ def _get_bridge() -> FLBridge:
 
 
 def _handle_request(req: dict) -> dict:
+    if not isinstance(req, dict):
+        return {"ok": False, "error": "request must be a JSON object"}
     op = req.get("op")
 
     if op == "health":
@@ -140,7 +142,15 @@ class _Handler(socketserver.StreamRequestHandler):
     def handle(self) -> None:
         logger.debug("client connected: %s", self.client_address)
         try:
-            for raw in self.rfile:  # one request per line
+            self.connection.settimeout(10)
+            while True:
+                raw = self.rfile.readline(1024 * 1024 + 1)
+                if not raw:
+                    break
+                if len(raw) > 1024 * 1024:
+                    self.wfile.write(b'{"ok":false,"error":"request too large"}\n')
+                    self.wfile.flush()
+                    break
                 line = raw.strip()
                 if not line:
                     continue
@@ -177,7 +187,8 @@ def main() -> None:
         level=os.environ.get("FLSTUDIO_MCP_LOG", "INFO").upper(),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    host = os.environ.get("FLSTUDIO_MCP_TCP_HOST", DEFAULT_TCP_HOST)
+    # Validate before opening MIDI or binding; an env override must never expose FL remotely.
+    host = local_tcp_host(os.environ.get("FLSTUDIO_MCP_TCP_HOST", DEFAULT_TCP_HOST))
     port = int(os.environ.get("FLSTUDIO_MCP_TCP_PORT", DEFAULT_TCP_PORT))
 
     # Pre-open so port problems surface in the log immediately. Non-fatal:

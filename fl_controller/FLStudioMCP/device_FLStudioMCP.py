@@ -89,6 +89,21 @@ HEARTBEAT_INTERVAL = 0.5  # seconds between heartbeats
 
 _last_heartbeat = 0.0
 _fl_version = "unknown"
+_project_session_marker = object()
+_project_session = "%s-%s" % (time.time(), id(_project_session_marker))
+_project_generation = 0
+_project_loading = False
+
+
+def OnProjectLoad(status):
+    global _project_generation, _project_loading
+    # Invalidate even same-name reloads and failed loads, including unsaved projects.
+    _project_generation += 1
+    _project_loading = status != 100
+
+
+def _project_token():
+    return "%s:%s" % (_project_session, _project_generation)
 
 # `device.midiOutSysex` is what we want; some old builds expose
 # `midiOutSysEx` (capital E). Resolve at OnInit.
@@ -100,7 +115,8 @@ _send_sysex_fn = None
 # ---------------------------------------------------------------------------
 
 def OnInit():
-    global _fl_version, _send_sysex_fn
+    global _fl_version, _send_sysex_fn, _project_generation
+    _project_generation += 1
     try:
         _fl_version = ui.getVersion()
     except Exception:
@@ -122,6 +138,8 @@ def OnInit():
 
 
 def OnDeInit():
+    global _project_generation
+    _project_generation += 1
     print("[FLStudioMCP] Shutting down.")
     return
 
@@ -298,6 +316,13 @@ class _ClientError(Exception):
 
 
 def _dispatch(command, params):
+    expected = params.get("_project_token")
+    if expected is not None:
+        if expected != _project_token() or _project_loading:
+            raise _ClientError("Project changed or is loading; operation refused", code="project_changed")
+        pattern = params.get("_expected_pattern")
+        if pattern is not None and pattern != patterns.patternNumber():
+            raise _ClientError("Selected pattern changed; operation refused", code="pattern_changed")
     handler = _HANDLERS.get(command)
     if handler is None:
         raise _ClientError("Unknown command: %s" % command, code="unknown_command")
@@ -461,6 +486,8 @@ def _h_get_project_state(params):
     return {
         "fl_version": _fl_version,
         "tempo_bpm": mixer.getCurrentTempo() / _tempo_scale(),
+        "project_token": _project_token(),
+        "project_loading": _project_loading,
         "playing": _is_playing(),
         "recording": _is_recording(),
         "pattern_number": pat_num,

@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fl_studio_mcp.server import build_server  # noqa: E402
+from fastmcp import Client  # noqa: E402
 
 EXPECTED_TOOLS = 72
 MUST_HAVE = ["fl_ping", "fl_get_project_state", "fl_write_piano_roll_notes",
@@ -28,8 +29,9 @@ def check(label, cond, detail=""):
     print("  [%s] %s%s" % ("PASS" if cond else "FAIL", label, ("  -- " + detail) if detail else ""))
 
 
-def main() -> int:
-    tools = asyncio.run(build_server().list_tools())
+async def main() -> int:
+    async with Client(build_server()) as client:
+        tools = await client.list_tools()
     names = sorted(t.name for t in tools)
     check("tool count", len(names) == EXPECTED_TOOLS,
           "%d registered, expected %d" % (len(names), EXPECTED_TOOLS))
@@ -44,4 +46,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(asyncio.run(main()))

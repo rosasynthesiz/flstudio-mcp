@@ -30,7 +30,7 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Mixers",
 ]
 dependencies = [
-    "fastmcp>=2.0.0",
+    "fastmcp>=2.14.0,<3",
     "pydantic>=2.7.0",
     "mido>=1.3.2",
     "python-rtmidi>=1.5.8",
@@ -78,6 +78,7 @@ audio-chords = [
 [project.scripts]
 fl-studio-mcp = "fl_studio_mcp.server:main"
 fl-studio-mcp-daemon = "fl_studio_mcp.daemon:main"
+fl-studio-mcp-doctor = "fl_studio_mcp.diagnostics:main"
 
 [project.urls]
 Homepage = "https://github.com/rosasynthesiz/flstudio-mcp"

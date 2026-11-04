@@ -23,6 +23,7 @@ jobs:
       - run: >
           ruff check src tests scripts/ci_packages.py scripts/test_*.py scripts/fake_fl.py
           --select F,E9
+      - run: ruff check scripts/install.py --select F,E9
       - run: bash -n scripts/install_macos.sh
 
   tests:
@@ -83,16 +84,16 @@ jobs:
         env:
           FLMCP_EXTRAS: all
         run: scripts\install_windows.bat > install.log 2>&1 & type install.log
-      - name: Installed packages
-        run: .venv\Scripts\python scripts\ci_packages.py
-      - name: Check the install and the installed app
+      - name: Check isolated runtime and installation
         shell: pwsh
         run: |
-          .venv\Scripts\python -m pip install -q "pytest>=8.0"
+          $m = Get-Content .flmcp-runtime.json -Raw | ConvertFrom-Json
+          & $m.python scripts/ci_packages.py
+          & $m.python -m pip install -q "pytest>=8.0"
           $env:FLMCP_INSTALL_LOG = "install.log"
           $env:FLMCP_DAEMON_CMD = "cmd /c scripts\start_daemon.bat"
-          $env:FLMCP_SERVER_CMD = "$PWD\.venv\Scripts\fl-studio-mcp.exe"
-          .venv\Scripts\python -m pytest tests/test_installer.py "tests/test_offline.py::test_app"
+          $env:FLMCP_SERVER_CMD = $m.server
+          & $m.python -m pytest tests/test_installer.py "tests/test_offline.py::test_app"
 
   installer-macos:
     name: installer-macos (py${{ matrix.python }})
@@ -106,18 +107,19 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-      - name: Fake FL user data folder
-        run: mkdir -p "$HOME/Documents/Image-Line/FL Studio/Settings/Hardware"
+      - name: Fake custom FL user data folder
+        run: |
+          echo "FL_SETTINGS=$RUNNER_TEMP/Custom FL Data/Settings" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/Custom FL Data/Settings/Hardware"
       - name: Run installer (answer yes to audio to MIDI)
         env:
           FLMCP_EXTRAS: all
         run: ./scripts/install_macos.sh 2>&1 | tee install.log
-      - name: Installed packages
-        run: python3 scripts/ci_packages.py
-      - name: Check the install and the installed app
+      - name: Check isolated runtime and installation
         run: |
-          python3 -m pip install -q "pytest>=8.0"
-          FLMCP_INSTALL_LOG=install.log \
-          FLMCP_DAEMON_CMD="$(command -v fl-studio-mcp-daemon)" \
-          FLMCP_SERVER_CMD="$(command -v fl-studio-mcp)" \
-          python3 -m pytest tests/test_installer.py "tests/test_offline.py::test_app"
+          PY="$(python3 -c 'import json; print(json.load(open(".flmcp-runtime.json"))["python"])')"
+          SERVER="$(python3 -c 'import json; print(json.load(open(".flmcp-runtime.json"))["server"])')"
+          "$PY" scripts/ci_packages.py
+          "$PY" -m pip install -q "pytest>=8.0"
+          FLMCP_INSTALL_LOG=install.log FLMCP_SERVER_CMD="$SERVER" \
+            "$PY" -m pytest tests/test_installer.py "tests/test_offline.py::test_app"
