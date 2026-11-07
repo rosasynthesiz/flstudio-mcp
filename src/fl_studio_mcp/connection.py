@@ -101,14 +101,13 @@ def _find_port(pattern: str, names: list[str]) -> str | None:
 def _virtual_ports_enabled() -> bool:
     """Whether to self-create virtual MIDI ports when the named ports are absent.
 
-    ``FLSTUDIO_MCP_VIRTUAL_PORTS`` = ``1``/``true``/``on`` forces on, ``0``/
-    ``false``/``off`` forces off. Default (``auto``): on for macOS/Linux, whose
-    CoreMIDI/ALSA backends support virtual ports; off on Windows (MME can't).
+    Opt-in: off unless ``FLSTUDIO_MCP_VIRTUAL_PORTS`` is ``1``/``true``/``on``/
+    ``yes``. Even then it only takes effect on macOS/Linux, whose CoreMIDI/ALSA
+    backends support virtual ports (Windows MME can't). Existing IAC Driver or
+    loopMIDI setups are left untouched by default.
     """
-    val = os.environ.get("FLSTUDIO_MCP_VIRTUAL_PORTS", "auto").strip().lower()
-    if val in ("1", "true", "on", "yes"):
-        return True
-    if val in ("0", "false", "off", "no"):
+    val = os.environ.get("FLSTUDIO_MCP_VIRTUAL_PORTS", "").strip().lower()
+    if val not in ("1", "true", "on", "yes"):
         return False
     return sys.platform != "win32"
 

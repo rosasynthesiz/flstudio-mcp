@@ -99,6 +99,10 @@ Linux is not yet supported — contributions welcome.
 
    Windows: create both ports in loopMIDI.
 
+   Optional (macOS/Linux only): set `FLSTUDIO_MCP_VIRTUAL_PORTS=1` to let the
+   server create the two ports itself (CoreMIDI/ALSA) when they are missing.
+   This is off by default, so existing IAC Driver ports are never duplicated.
+
    macOS:
    - Open **Audio MIDI Setup**.
    - Choose **Window > Show MIDI Studio**.
