@@ -120,9 +120,10 @@ CMD_PATTERN_RENAME = "pattern_rename"
 CMD_PATTERN_GET_LENGTH = "pattern_get_length"
 
 # Plugin params (Phase 1B)
+# (CMD_PLUGIN_LIST_PARAMS "plugin_list_params" was a dead declaration -- never
+# had a handler or tool; plugin_get_params fully covers the dump, removed E-2)
 CMD_PLUGIN_LIST = "plugin_list"            # list plugins on a mixer track's slots
 CMD_PLUGIN_GET_PARAMS = "plugin_get_params"  # paginated param dump for one plugin
-CMD_PLUGIN_LIST_PARAMS = "plugin_list_params"
 CMD_PLUGIN_GET_PARAM = "plugin_get_param"
 CMD_PLUGIN_SET_PARAM = "plugin_set_param"
 

@@ -36,6 +36,7 @@ from .tools import export as export_tools
 from .tools import mix_doctor as mix_doctor_tools
 from .tools import mixing as mixing_tools
 from .tools import phase1 as phase1_tools
+from .tools import pattern as pattern_tools
 from .tools import pianoroll as pianoroll_tools
 from .tools import plugin as plugin_tools
 from .tools import presets as presets_tools
@@ -104,8 +105,7 @@ def build_server() -> FastMCP:
     mix_doctor_tools.register(mcp)  # Mix Doctor: diagnose whole mix + gated apply-fixes
     steps_tools.register(mcp)       # Step sequencer: read/write drum steps (safety layer)
     drums_tools.register(mcp)       # Drums to MIDI, optionally into the step sequencer
-    # Later tool packs register here as they ship:
-    #   pattern_tools.register(mcp)
+    pattern_tools.register(mcp)     # E-2: pattern list/select/rename/get_length
     return mcp
 
 
