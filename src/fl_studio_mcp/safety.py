@@ -22,6 +22,7 @@ from .protocol import (
     CMD_PLUGIN_GET_PARAM,
     CMD_MIXER_GET_ROUTING,
     CMD_CHANNEL_GET_GRID,
+    CMD_PATTERN_GET_LENGTH,
 )
 
 
@@ -108,6 +109,7 @@ def take_snapshot(bridge, scope):
 
     scope: "mixer_track:N" | "channel:N" | "mixer_all" | "channels_all"
            | "plugin_param:TRACK:SLOT:PARAM" | "grid:CHANNEL:LENGTH"
+           | "route:SRC:DST" | "pattern:N"
     """
     kind, _, arg = str(scope).partition(":")
     if kind == "mixer_track":
@@ -126,6 +128,11 @@ def take_snapshot(bridge, scope):
         info = bridge.call(CMD_MIXER_GET_ROUTING, {"track": src})
         enabled = any(d.get("dst") == dst for d in info.get("routes_to", []))
         return {"src": src, "dst": dst, "enabled": enabled}
+    if kind == "pattern":
+        # Single-pattern read: name + length (ticks/bars) + selection state.
+        # Doubles as the rename/select rollback basis (restore = old name /
+        # previously selected index).
+        return bridge.call(CMD_PATTERN_GET_LENGTH, {"index": int(arg)})
     if kind == "mixer_all":
         from .connection import fetch_all_pages
         return fetch_all_pages(bridge, CMD_MIXER_LIST_TRACKS, "tracks")

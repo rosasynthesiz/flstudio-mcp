@@ -53,6 +53,8 @@ _NOTE = {"pitch": 60, "time_bars": 0.0, "length_bars": 0.25, "velocity": 0.8}
     ("fl_quantize_pattern", {"grid_bars": 0.0625}),
     ("fl_write_raga_melody", {"notes": [_NOTE], "channel": 1}),
     ("fl_write_raga_chords", {"notes": [_NOTE], "channel": 1}),
+    ("fl_pattern_select", {"index": 1}),
+    ("fl_pattern_rename", {"index": 1, "name": "dry run"}),
     ("fl_rollback_last_change", {}),
 ])
 async def test_dry_run_previews_without_any_daw_action(offline_daw, tool, arguments):
