@@ -5,7 +5,8 @@ Goal: a new user runs ONE command, opens FL Studio, and is connected.
 * ``setup``   copies the controller script that ships with this server into
               FL Studio's user-data folder (backing up a different old copy),
               waits for FL Studio to be opened, then runs ``doctor``.
-              ``--no-wait`` skips the wait.
+              It waits when run in a terminal; ``--no-wait`` skips that and
+              ``--wait`` forces it elsewhere.
 * ``doctor``  checks every stage and prints the one next step. Read-only.
 * ``connect`` prints the MCP client entry to paste (it edits no files).
 
@@ -320,7 +321,10 @@ def run(argv: list[str]) -> int:
                     print("  FL Studio is open: restart it to load the new controller.")
                 print()
     report.update(diagnose())
-    if (cmd == "setup" and not as_json and "--no-wait" not in rest
+    # Wait only when someone is there to open FL Studio (a terminal), or when
+    # asked with --wait. Scripts and CI get the report straight away.
+    wants_wait = "--wait" in rest or (sys.stdout.isatty() and "--no-wait" not in rest)
+    if (cmd == "setup" and not as_json and wants_wait
             and report["status"] in ("FL_CLOSED", "NO_HEARTBEAT")):
         # First link: FL picks the controller up when it starts while our MIDI
         # ports exist, and remembers it afterwards. So keep them open and wait.

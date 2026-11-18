@@ -112,12 +112,13 @@ jobs:
         env:
           FLMCP_EXTRAS: all
         run: ./scripts/install_macos.sh 2>&1 | tee install.log
+      # v2: the installer uses a private .venv, never the system Python.
       - name: Installed packages
-        run: python3 scripts/ci_packages.py
+        run: .venv/bin/python scripts/ci_packages.py
       - name: Check the install and the installed app
         run: |
-          python3 -m pip install -q "pytest>=8.0"
+          .venv/bin/python -m pip install -q "pytest>=8.0"
           FLMCP_INSTALL_LOG=install.log \
-          FLMCP_DAEMON_CMD="$(command -v fl-studio-mcp-daemon)" \
-          FLMCP_SERVER_CMD="$(command -v fl-studio-mcp)" \
-          python3 -m pytest tests/test_installer.py "tests/test_offline.py::test_app"
+          FLMCP_DAEMON_CMD="$PWD/.venv/bin/fl-studio-mcp-daemon" \
+          FLMCP_SERVER_CMD="$PWD/.venv/bin/fl-studio-mcp" \
+          .venv/bin/python -m pytest tests/test_installer.py "tests/test_offline.py::test_app"

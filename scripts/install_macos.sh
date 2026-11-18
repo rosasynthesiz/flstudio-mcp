@@ -45,8 +45,18 @@ if (( ${#EXTRAS[@]} )); then
   fi
 else
   "$VENV/bin/python" -m pip install --quiet -e .
+  echo "  Audio to MIDI not installed (optional: FLMCP_EXTRAS=all)."
 fi
 
 echo "[3/3] Controller + connection check..."
 echo
-exec "$VENV/bin/fl-studio-mcp" setup "$@"
+# The install itself is done here. `setup` exits non-zero while FL Studio is
+# not connected yet, which is normal on a first run: report it, do not fail.
+if "$VENV/bin/fl-studio-mcp" setup "$@"; then
+  echo
+  echo "Installed and connected. Commands live in: $VENV/bin"
+else
+  echo
+  echo "Installed. FL Studio is not connected yet: do the 'Next' step above,"
+  echo "then run:  $VENV/bin/fl-studio-mcp doctor"
+fi
