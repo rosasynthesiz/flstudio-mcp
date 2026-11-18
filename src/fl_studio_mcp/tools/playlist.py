@@ -26,9 +26,31 @@ def register(mcp: FastMCP) -> None:
            "idempotentHint": True, "openWorldHint": True}
 
     @mcp.tool(annotations={"title": "List playlist tracks", **_RO})
-    def fl_playlist_tracks() -> dict:
-        """List playlist tracks (1-based) with name + mute/solo state."""
-        return fetch_all_pages(get_bridge(), protocol.CMD_PLAYLIST_TRACK_LIST, "tracks")
+    def fl_playlist_tracks(
+        start: Annotated[int, Field(ge=0, description="First track to return (0-based offset).")] = 0,
+        limit: Annotated[int, Field(ge=1, le=500, description=(
+            "Max tracks to return. FL has 500 playlist tracks; the default keeps "
+            "the reply small."))] = 30,
+    ) -> dict:
+        """List playlist tracks (1-based) with name + mute/solo state.
+
+        Returns {total, start, tracks, next_start}. Pass next_start as `start`
+        for the following page; next_start is null at the end.
+        """
+        bridge = get_bridge()
+        out, cur, total = [], start, None
+        while len(out) < limit:
+            page = bridge.call(protocol.CMD_PLAYLIST_TRACK_LIST, {"start": cur})
+            total = page.get("total", total)
+            chunk = page.get("tracks") or []
+            out.extend(chunk[: limit - len(out)])
+            nxt = page.get("next_start")
+            if nxt is None or not chunk or int(nxt) <= cur:
+                break
+            cur = int(nxt)
+        end = start + len(out)
+        return {"total": total, "start": start, "tracks": out,
+                "next_start": end if total is not None and end < total else None}
 
     @mcp.tool(annotations={"title": "Mute/unmute a playlist track", **_WR})
     def fl_playlist_mute_track(

@@ -111,6 +111,15 @@ class ChangeLog:
 _log = ChangeLog()
 _dry_run = False
 
+# FL commits plugin-parameter writes on a later script tick and can swallow one
+# that arrives too soon after another. 0.4 s is the pace measured on live FL
+# (see _landed_write). Calibration sweeps and undo use the same pace.
+PLUGIN_SETTLE_SECONDS = 0.4
+PLUGIN_VALUE_TOLERANCE = 0.02
+# Now and then FL takes a second or more to accept a write (seen live right
+# after another write landed). Sweeps and restores wait this many sends.
+PLUGIN_WRITE_ATTEMPTS = 8
+
 
 def set_dry_run(enabled) -> dict:
     global _dry_run
@@ -323,9 +332,15 @@ def temporary_plugin_write(bridge, address, operation):
     """
     if is_dry_run():
         raise ValueError("Temporary parameter writes are disabled during dry-run")
-    if any(entry.get("incomplete") for entry in _log.recent(_MAX)):
-        raise RuntimeError("Resolve incomplete recovery before starting calibration")
     bridge = _ProjectBridge(bridge)
+    # Only an unfinished change in THIS project and session can be resolved (by
+    # fl_rollback_last_change), so only that blocks. Entries left by another
+    # project or an earlier FL session can never be applied here; they must not
+    # lock the tool for good.
+    if any(entry.get("incomplete") and entry.get("project_token") == bridge.token
+           for entry in _log.recent(_MAX)):
+        raise RuntimeError("An earlier change in this project did not finish. Run "
+                           "fl_rollback_last_change first, then calibrate again.")
     address = {key: address[key] for key in ("track", "slot", "param")}
     scope = "plugin_param:{track}:{slot}:{param}".format(**address)
     before = take_snapshot(bridge, scope)
@@ -342,18 +357,21 @@ def temporary_plugin_write(bridge, address, operation):
         return operation(bridge)
     finally:
         try:
-            result = bridge.call(restore["command"], restore["params"])
-            if isinstance(result, dict) and result.get("ok") is False:
-                raise RuntimeError("Controller refused calibration restoration")
-            for attempt in range(4):
+            # The sweep's last write is only just behind us, and FL can drop a
+            # write that follows another too closely: send the original value
+            # at the live pace until an independent read shows it.
+            for attempt in range(PLUGIN_WRITE_ATTEMPTS):
+                if attempt:
+                    time.sleep(PLUGIN_SETTLE_SECONDS)
+                result = bridge.call(restore["command"], restore["params"])
+                if isinstance(result, dict) and result.get("ok") is False:
+                    raise RuntimeError("Controller refused calibration restoration")
                 after = take_snapshot(bridge, scope)
                 actual = after.get("v")
                 if (isinstance(actual, (int, float)) and not isinstance(actual, bool)
                         and math.isfinite(actual) and 0 <= actual <= 1
                         and abs(actual - value) <= 1e-4):
                     break
-                if attempt < 3:
-                    time.sleep(.06)
             else:
                 raise RuntimeError("Calibration restoration readback did not match")
         except Exception as error:
@@ -562,14 +580,22 @@ def rollback_last_change(bridge):
     preview = preview_write(tool="rollback_last_change")
     if preview is not None:
         return preview
-    recent = _log.recent(1)
-    if not recent:
+    entries = _log.recent(_MAX)
+    if not entries:
         return {"ok": False, "error": "changelog is empty"}
-    entry = recent[0]
+    entry = entries[-1]
     try:
         bridge = _ProjectBridge(bridge)
-        if not entry.get("project_token") or entry["project_token"] != bridge.token:
-            raise RuntimeError("Undo belongs to another project/controller session or legacy history")
+        # Undo the newest change made in THIS project and session. Older entries
+        # from another project or FL session stay in the log (they age out) but
+        # are never applied here, and they do not hide this session's changes.
+        entry = next((e for e in reversed(entries)
+                      if e.get("project_token") and e["project_token"] == bridge.token), None)
+        if entry is None:
+            entry = entries[-1]
+            raise RuntimeError("Nothing to undo in this project. The newest entry in the "
+                               "log belongs to another project/controller session or "
+                               "legacy history; it is kept but cannot be applied here.")
         bridge.pattern = entry.get("pattern")
         restores = entry.get("restores") if entry.get("group") else [entry.get("restore")]
         if not restores or any(not r for r in restores):
@@ -586,6 +612,16 @@ def rollback_last_change(bridge):
             if isinstance(result, dict) and result.get("ok") is False:
                 raise RuntimeError("Controller refused restoration: %s" % result)
             after = take_snapshot(bridge, scope)
+            if not _snapshot_matches(after, expected) and str(scope).startswith("plugin_param:"):
+                # Same-tick read of a plugin parameter can still show the old
+                # value. The restore sets an absolute value, so sending it
+                # again is safe.
+                for _ in range(PLUGIN_WRITE_ATTEMPTS - 1):
+                    time.sleep(PLUGIN_SETTLE_SECONDS)
+                    bridge.call(r["command"], r.get("params") or {})
+                    after = take_snapshot(bridge, scope)
+                    if _snapshot_matches(after, expected):
+                        break
             if not _snapshot_matches(after, expected):
                 raise RuntimeError("Restoration readback did not match original; undo retained")
             final_checks.setdefault(scope, {}).update(expected)

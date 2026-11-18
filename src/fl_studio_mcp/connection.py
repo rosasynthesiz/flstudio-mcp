@@ -344,25 +344,32 @@ class FLBridge:
         return self._send(command, params, timeout or self.default_timeout)
 
     def _confirm_request_path(self) -> None:
-        """Make sure FL is listening before the first real command.
+        """Wait until FL answers steadily before the first real command.
 
-        Right after the ports appear, FL's heartbeat can reach us a moment
-        before FL listens on its input. A command sent in that gap is lost and
-        would look like a 5 s timeout, so a few short pings go first. A ping
-        changes nothing in FL, so repeating it is safe; real commands are
-        never re-sent.
+        Measured on FL Studio 26.1 (macOS): after the MIDI ports appear, FL
+        can answer one early ping and then go silent for about a second while
+        it finishes attaching the device. A command sent in that gap is lost
+        and would look like a 5 s timeout. So the first command waits for
+        three pings in a row, 0.1 s apart. A ping changes nothing in FL, so
+        repeating it is safe; real commands are never re-sent.
         """
         if self._request_path_ok:
             return
-        for _ in range(5):
+        in_a_row = 0
+        deadline = time.monotonic() + 8.0
+        while time.monotonic() < deadline:
             try:
-                self._send(protocol.CMD_PING, None, 1.0)
+                self._send(protocol.CMD_PING, None, 0.5)
             except FLTimeout:
+                in_a_row = 0
                 continue
-            self._request_path_ok = True
-            return
+            in_a_row += 1
+            if in_a_row >= 3:
+                self._request_path_ok = True
+                return
+            time.sleep(0.1)
         raise FLTimeout(
-            "[PING_TIMEOUT] FL Studio sends heartbeats but does not answer. "
+            "[PING_TIMEOUT] FL Studio sends heartbeats but does not answer steadily. "
             "Next: close any open dialog in FL Studio and try again."
         )
 
@@ -384,6 +391,10 @@ class FLBridge:
                     % (command, eff_timeout)
                 )
             resp = slot.payload or {}
+            if logger.isEnabledFor(logging.DEBUG):   # FLSTUDIO_MCP_LOG=DEBUG
+                logger.debug("FL %s %s -> %s", command,
+                             {k: v for k, v in (params or {}).items() if k != "_project_token"},
+                             str(resp)[:300])
             if resp.get("ok"):
                 return resp.get("data")
             error = resp.get("error", "FL returned an error")

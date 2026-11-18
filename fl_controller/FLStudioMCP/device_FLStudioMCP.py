@@ -348,6 +348,7 @@ def _h_ping(params):
         "protocol_version": PROTOCOL_VERSION,
         "build": CONTROLLER_VERSION,
         "controller_version": CONTROLLER_VERSION,
+        "pickup_modes": [getattr(midi, n, None) for n in ("PIM_None", "PIM_AlwaysPickup", "PIM_FollowGlobal")],
         "ts": time.time(),
     }
 
@@ -844,6 +845,23 @@ def _h_plugin_get_param(p):
     }
 
 
+def _set_plugin_param(val, idx, track, slot, pickup=None):
+    """Write a plugin parameter with an explicit pickup mode.
+
+    Measured live on FL Studio 26.1.5: called WITHOUT a pickup mode, FL often
+    swallows the write (the value stays put however often it is re-sent). With
+    any explicit mode every write lands on the first send. Default: PIM_None.
+    """
+    mode = {"always": getattr(midi, "PIM_AlwaysPickup", None),
+            "global": getattr(midi, "PIM_FollowGlobal", None)}.get(pickup)
+    if mode is None:
+        mode = getattr(midi, "PIM_None", None)
+    if mode is None:                      # very old FL build without the constant
+        plugins.setParamValue(val, idx, track, slot)
+    else:
+        plugins.setParamValue(val, idx, track, slot, mode)
+
+
 def _h_plugin_set_param(p):
     track = int(p["track"])
     slot = int(p["slot"])
@@ -851,7 +869,7 @@ def _h_plugin_set_param(p):
     val = float(p["value"])
     if not plugins.isValid(track, slot):
         raise _ClientError("no plugin at track %d slot %d" % (track, slot))
-    plugins.setParamValue(val, idx, track, slot)
+    _set_plugin_param(val, idx, track, slot, p.get("pickup"))
     return {
         "track": track, "slot": slot, "param": idx,
         "name": _plugin_param_name(idx, track, slot),

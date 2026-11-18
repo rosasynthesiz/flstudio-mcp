@@ -132,16 +132,28 @@ def _valid_norm(value):
 
 
 def _set_verified(bridge, address, value):
-    """Wait through fresh script ticks; never sample an unconfirmed position."""
-    bridge.call(protocol.CMD_PLUGIN_SET_PARAM, dict(address, value=value))
-    for attempt in range(4):
+    """Write a sweep point and wait until FL really holds it.
+
+    FL commits plugin writes on a later script tick and can drop one that
+    arrives right after another, so a miss is re-sent at the live pace used by
+    the verified parameter tools. A position that never lands is an error: the
+    sweep must not sample a value it did not set.
+    """
+    got = {}
+    for attempt in range(safety.PLUGIN_WRITE_ATTEMPTS):
+        if attempt:
+            time.sleep(safety.PLUGIN_SETTLE_SECONDS)
+        bridge.call(protocol.CMD_PLUGIN_SET_PARAM, dict(address, value=value))
         got = bridge.call(protocol.CMD_PLUGIN_GET_PARAM, address)
         actual = got.get('v')
-        if _valid_norm(actual) and abs(actual - value) <= 1e-4:
+        if _valid_norm(actual) and abs(actual - value) <= safety.PLUGIN_VALUE_TOLERANCE:
             return got
-        if attempt < 3:
-            time.sleep(.06)
-    raise RuntimeError('Calibration write readback did not match requested value %r' % value)
+    raise RuntimeError(
+        'Calibration write readback did not match requested value %r (FL holds %r). '
+        'The parameter may be stepped, or the plugin window may be open in pickup mode.'
+        % (value, got.get('v')))
+
+
 def sweep_param(bridge, track, slot, index, steps=DEFAULT_STEPS):
     """Sweep ``index`` across 0..1 in ``steps`` points, reading + parsing the
     display string at each. Snapshots first and RESTORES after. Returns

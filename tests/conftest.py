@@ -80,6 +80,12 @@ def controller(monkeypatch):
     return module
 
 
+@pytest.fixture(autouse=True)
+def _no_live_pacing(monkeypatch):
+    """Tests talk to fakes: skip the 0.4 s pace used against a live FL Studio."""
+    monkeypatch.setattr(safety, "PLUGIN_SETTLE_SECONDS", 0.0)
+
+
 def pytest_runtest_logreport(report):
     if report.failed and os.environ.get("GITHUB_ACTIONS"):
         crash = getattr(report.longrepr, "reprcrash", None)

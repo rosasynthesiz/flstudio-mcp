@@ -101,10 +101,19 @@ def test_old_controller_refused_without_writes(changelog):
 
 def test_pending_recovery_refuses_another_sweep(changelog):
     bridge = GuardedPlugin()
-    changelog.append({'incomplete': True, 'tool': 'prior-write'})
-    with pytest.raises(RuntimeError, match='Resolve incomplete recovery'):
+    # An unfinished change in THIS project and session blocks a new sweep...
+    changelog.append({'incomplete': True, 'tool': 'prior-write', 'project_token': 'original'})
+    with pytest.raises(RuntimeError, match='fl_rollback_last_change'):
         cal.sweep_param(bridge, 0, 0, 0, steps=3)
     assert not bridge.writes and len(changelog.recent()) == 1
+
+
+def test_stale_recovery_from_another_session_does_not_block(changelog):
+    # ...but one left behind by another project or FL session never can.
+    bridge = GuardedPlugin()
+    changelog.append({'incomplete': True, 'tool': 'prior-write', 'project_token': 'gone'})
+    cal.sweep_param(bridge, 0, 0, 0, steps=3)
+    assert bridge.writes and len(changelog.recent()) == 1
 
 
 def test_guard_survives_gap_between_calibration_and_final_write(changelog):

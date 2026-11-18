@@ -426,15 +426,38 @@ def _wired(monkeypatch, **kw):
     return bridge
 
 
-def test_first_command_is_not_lost_while_fl_attaches(monkeypatch):
-    bridge = _wired(monkeypatch, drop_first=2)
+def test_first_command_waits_for_three_steady_pings(monkeypatch):
+    bridge = _wired(monkeypatch)
+    monkeypatch.setattr(conn.time, "sleep", lambda s: None)
     try:
         assert bridge.call("mixer_set_name", {"track": 1, "name": "x"}) == {"pong": True}
-        sent = bridge._out_port.sent
-        assert sent.count("mixer_set_name") == 1          # the write went out once
-        assert sent[:3] == ["ping", "ping", "ping"]        # only pings were repeated
+        assert bridge._out_port.sent == ["ping", "ping", "ping", "mixer_set_name"]
         bridge.call("get_tempo")
         assert bridge._out_port.sent.count("ping") == 3    # handshake happens once
+    finally:
+        bridge.close()
+
+
+def test_one_early_answer_then_silence_is_not_trusted(monkeypatch):
+    """FL answers one ping, drops the next two while attaching, then is steady."""
+    bridge = _wired(monkeypatch)
+    monkeypatch.setattr(conn.time, "sleep", lambda s: None)
+    wire = bridge._out_port
+    plan = iter([True, False, False, True, True, True, True, True])
+    real_send = wire.send
+
+    def send(msg):
+        if next(plan, True):
+            return real_send(msg)
+        wire.sent.append("ping(lost)")
+
+    wire.send = send
+    monkeypatch.setattr(bridge, "_send", (lambda orig: lambda c, p, t: orig(c, p, 0.01))(bridge._send))
+    try:
+        bridge.call("mixer_set_name", {"track": 1, "name": "x"})
+        sent = wire.sent
+        assert sent.count("mixer_set_name") == 1 and sent[-1] == "mixer_set_name"
+        assert sent[:6] == ["ping", "ping(lost)", "ping(lost)", "ping", "ping", "ping"]
     finally:
         bridge.close()
 

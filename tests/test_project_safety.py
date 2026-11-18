@@ -258,3 +258,63 @@ def test_group_final_readback_catches_later_restore_side_effect(changelog):
     bridge.coupled = False
     assert safety.rollback_last_change(bridge)['ok'] is True
     assert bridge.state == {'mute': True, 'solo': True} and not changelog.recent()
+
+
+def test_stale_entries_do_not_hide_this_sessions_undo(monkeypatch, tmp_path):
+    """Entries left by another project must not block undo of the current one."""
+    monkeypatch.setattr(safety, "_DIR", tmp_path)
+    monkeypatch.setattr(safety, "_PATH", tmp_path / "changelog.jsonl")
+    log = safety.ChangeLog()
+    monkeypatch.setattr(safety, "_log", log)
+    safety.set_dry_run(False)
+    mine = {"tool": "set_tempo", "scope": "tempo", "before": {"bpm": 120.0},
+            "restore": {"command": "set_tempo", "params": {"bpm": 120.0}},
+            "project_token": "now:1"}
+    stale = {"tool": "mixer_set_name", "scope": "mixer_track:5", "incomplete": True,
+             "restore": {"command": "mixer_set_name", "params": {"track": 5, "name": "x"}},
+             "project_token": "old:9"}
+    log.append(mine)
+    log.append(stale)                      # newer in the file, but from another session
+
+    class Bridge:
+        sent = []
+        def call(self, command, params=None):
+            if command == "get_project_state":
+                return {"project_token": "now:1", "project_loading": False}
+            if command == "set_tempo":
+                self.sent.append(params["bpm"])
+                return {"ok": True}
+            return {"bpm": 120.0}
+
+    result = safety.rollback_last_change(Bridge())
+    assert result["ok"] and result["rolled_back"] == "set_tempo" and Bridge.sent == [120.0]
+    assert log.recent() == [stale]         # the stale record is kept, untouched
+    again = safety.rollback_last_change(Bridge())
+    assert again["ok"] is False and "Nothing to undo in this project" in again["error"]
+    assert log.recent() == [stale]
+
+
+def test_stale_incomplete_entry_does_not_lock_calibration(monkeypatch, tmp_path):
+    monkeypatch.setattr(safety, "_DIR", tmp_path)
+    monkeypatch.setattr(safety, "_PATH", tmp_path / "changelog.jsonl")
+    log = safety.ChangeLog()
+    monkeypatch.setattr(safety, "_log", log)
+    safety.set_dry_run(False)
+    log.append({"tool": "mixer_set_name", "incomplete": True, "project_token": "old:9"})
+
+    class Bridge:
+        value = 0.25
+        def call(self, command, params=None):
+            if command == "get_project_state":
+                return {"project_token": "now:1", "project_loading": False}
+            if command == "plugin_set_param":
+                Bridge.value = params["value"]
+                return {"ok": True}
+            return {"v": Bridge.value, "s": "x"}
+
+    address = {"track": 0, "slot": 9, "param": 1}
+    assert safety.temporary_plugin_write(Bridge(), address, lambda b: "swept") == "swept"
+
+    log.append({"tool": "plugin_set_param", "incomplete": True, "project_token": "now:1"})
+    with pytest.raises(RuntimeError, match="fl_rollback_last_change"):
+        safety.temporary_plugin_write(Bridge(), address, lambda b: "swept")
