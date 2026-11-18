@@ -348,6 +348,7 @@ def _h_ping(params):
         "protocol_version": PROTOCOL_VERSION,
         "build": CONTROLLER_VERSION,
         "controller_version": CONTROLLER_VERSION,
+        "pickup_modes": [getattr(midi, n, None) for n in ("PIM_None", "PIM_AlwaysPickup", "PIM_FollowGlobal")],
         "ts": time.time(),
     }
 
@@ -844,6 +845,23 @@ def _h_plugin_get_param(p):
     }
 
 
+def _set_plugin_param(val, idx, track, slot, pickup=None):
+    """Write a plugin parameter with an explicit pickup mode.
+
+    Measured live on FL Studio 26.1.5: called WITHOUT a pickup mode, FL often
+    swallows the write (the value stays put however often it is re-sent). With
+    any explicit mode every write lands on the first send. Default: PIM_None.
+    """
+    mode = {"always": getattr(midi, "PIM_AlwaysPickup", None),
+            "global": getattr(midi, "PIM_FollowGlobal", None)}.get(pickup)
+    if mode is None:
+        mode = getattr(midi, "PIM_None", None)
+    if mode is None:                      # very old FL build without the constant
+        plugins.setParamValue(val, idx, track, slot)
+    else:
+        plugins.setParamValue(val, idx, track, slot, mode)
+
+
 def _h_plugin_set_param(p):
     track = int(p["track"])
     slot = int(p["slot"])
@@ -851,7 +869,7 @@ def _h_plugin_set_param(p):
     val = float(p["value"])
     if not plugins.isValid(track, slot):
         raise _ClientError("no plugin at track %d slot %d" % (track, slot))
-    plugins.setParamValue(val, idx, track, slot)
+    _set_plugin_param(val, idx, track, slot, p.get("pickup"))
     return {
         "track": track, "slot": slot, "param": idx,
         "name": _plugin_param_name(idx, track, slot),
@@ -1459,7 +1477,110 @@ def _h_arrange_add_marker(p):
         return {"ok": False, "error": "addAutoTimeMarker: %s" % e}
 
 
+def _h_arrange_get_markers(p):
+    if arrangement is None:
+        return {"ok": False, "error": "arrangement module not available"}
+    cap = int(p.get("cap", 64))
+    markers = []
+    for i in range(cap):
+        try:
+            nm = arrangement.getMarkerName(i)
+        except Exception:
+            break
+        if not nm:
+            break
+        markers.append({"index": i, "name": nm})
+    return {"ok": True, "markers": markers, "count": len(markers)}
+
+
+def _h_arrange_get_selection(p):
+    if arrangement is None:
+        return {"ok": False, "error": "arrangement module not available"}
+
+    def _safe(fn):
+        try:
+            return fn()
+        except Exception:
+            return None
+    return {"ok": True,
+            "active": _safe(arrangement.selectionIsActive),
+            "start": _safe(arrangement.selectionStart),
+            "end": _safe(arrangement.selectionEnd),
+            "current_time": _safe(lambda: arrangement.currentTime(0))}
+
+
+def _h_playlist_get_track(p):
+    """One playlist track's state -- used as the safe_write snapshot source."""
+    t = int(p["track"])
+    return {"track": t, "name": playlist.getTrackName(t),
+            "muted": bool(playlist.isTrackMuted(t)),
+            "solo": bool(playlist.isTrackSolo(t)),
+            "color": playlist.getTrackColor(t)}
+
+
+def _h_playlist_mute_track(p):
+    t = int(p["track"])
+    state = p.get("state", None)
+    cur = bool(playlist.isTrackMuted(t))
+    if state is None or bool(state) != cur:
+        playlist.muteTrack(t)
+    return {"ok": True, "track": t, "muted": bool(playlist.isTrackMuted(t))}
+
+
+def _h_playlist_set_track_color(p):
+    t = int(p["track"])
+    color = int(p.get("color", 0))
+    try:
+        playlist.setTrackColor(t, color)
+    except Exception as e:
+        return {"ok": False, "error": "setTrackColor: %s" % e}
+    return {"ok": True, "track": t, "color": playlist.getTrackColor(t)}
+
+
+def _h_playlist_set_track_name(p):
+    t = int(p["track"])
+    name = str(p.get("name", ""))
+    try:
+        playlist.setTrackName(t, name)
+    except Exception as e:
+        return {"ok": False, "error": "setTrackName: %s" % e}
+    return {"ok": True, "track": t, "name": playlist.getTrackName(t)}
+
+
+def _h_playlist_solo_track(p):
+    t = int(p["track"])
+    state = p.get("state", None)
+    cur = bool(playlist.isTrackSolo(t))
+    if state is None or bool(state) != cur:
+        playlist.soloTrack(t)
+    return {"ok": True, "track": t, "solo": bool(playlist.isTrackSolo(t))}
+
+
+def _h_playlist_track_list(p):
+    n = playlist.trackCount()
+
+    def entry(i):
+        t = i + 1
+        name, cut = _truncate_name(playlist.getTrackName(t))
+        e = {"track": t, "name": name,
+             "muted": bool(playlist.isTrackMuted(t)),
+             "solo": bool(playlist.isTrackSolo(t))}
+        if cut:
+            e["trunc"] = True
+        return e
+    return _paginate(n, p.get("start", 0), entry, "tracks")
+
+
 _HANDLERS = {
+    'playlist_track_list': _h_playlist_track_list,
+    'playlist_get_track': _h_playlist_get_track,
+    'playlist_mute_track': _h_playlist_mute_track,
+    'playlist_solo_track': _h_playlist_solo_track,
+    'playlist_set_track_name': _h_playlist_set_track_name,
+    'playlist_set_track_color': _h_playlist_set_track_color,
+    'arrange_get_selection': _h_arrange_get_selection,
+    'arrange_get_markers': _h_arrange_get_markers,
+
     "ping": _h_ping,
     "get_tempo": _h_get_tempo,
     "set_tempo": _h_set_tempo,

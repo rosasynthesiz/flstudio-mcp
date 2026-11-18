@@ -51,6 +51,11 @@ from .tools import steps as steps_tools
 from .tools import transport as transport_tools
 
 
+from .tools import capabilities as capabilities_tools
+from .tools import loader as loader_tools
+from .tools import playlist as playlist_tools
+from .tools import vst as vst_tools
+
 logger = logging.getLogger("fl_studio_mcp")
 
 
@@ -102,6 +107,10 @@ def build_server() -> FastMCP:
     steps_tools.register(mcp)       # Step sequencer: read/write drum steps (safety layer)
     drums_tools.register(mcp)       # Drums to MIDI, optionally into the step sequencer
     pattern_tools.register(mcp)     # E-2: pattern list/select/rename/get_length
+    capabilities_tools.register(mcp)
+    loader_tools.register(mcp)
+    playlist_tools.register(mcp)
+    vst_tools.register(mcp)
     return mcp
 
 

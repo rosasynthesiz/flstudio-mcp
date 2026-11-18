@@ -17,7 +17,7 @@
 
 `flstudio-mcp` is a Model Context Protocol (MCP) server that connects FL Studio to AI assistants: Claude Code, Claude Desktop, Cursor, Codex, or any other MCP client. Ask for a mix diagnosis, a vocal chain, a chord progression in a particular scale, or a full arrangement, and the assistant carries it out inside your open FL Studio project through FL's scripting API and a set of calibrated, safety-checked tools.
 
-- **76 tools** for the mixer, plugins, piano roll, step sequencer, patterns, routing and transport
+- **90 tools** for the mixer, plugins, piano roll, step sequencer, patterns, playlist, routing and transport
 - **One-command setup on macOS**, with no MIDI configuration
 - **Every change can be undone**, and an undo never touches a different project
 - **Windows and macOS**, FL Studio 2025 and 2026
@@ -94,7 +94,7 @@ these commands yet; use the commands above until 2.0.0 is released.
 - **Chords-to-MIDI** transcription of polyphonic audio (keys, piano, guitar) with Spotify's Basic Pitch, as notes for the piano roll or a `.mid` file.
 - **Drums to MIDI**: a drum loop or stem to kick, snare, clap, closed and open hi-hat, aligned to the beat, as a `.mid` or straight into the step sequencer of the channels you choose (one undo step).
 
-The server exposes 76 tools across 15 categories, plus 6 live resources (project, mixer, transport, channels, patterns, status) that Claude can read directly.
+The server exposes 90 tools, plus 6 live resources (project, mixer, transport, channels, patterns, status) that Claude can read directly.
 
 ## What sets it apart
 
@@ -244,7 +244,7 @@ Plain-language prompts:
 
 ## Tools
 
-76 tools, grouped by area.
+90 tools, grouped by area.
 
 ### Transport
 
@@ -301,6 +301,14 @@ Plain-language prompts:
 - `fl_plugin_get_params` — List every named parameter of a plugin with its value and display text.
 - `fl_plugin_set_param` — Set one plugin parameter, then verify it landed.
 - `fl_plugin_set_params` — Set several parameters of one plugin as a single rollback unit.
+- `fl_plugin_overview` — Summarise a plugin: how controllable it is and its parameters grouped by role.
+- `fl_plugin_find_params` — Search a plugin's parameters by name.
+- `fl_plugin_calibrate_param` — Learn a parameter's real unit (dB, Hz, ms, %) by sweeping it, then restoring it.
+- `fl_plugin_set_param_value` — Set a parameter to a real-unit value, for example 6 dB or 30 %.
+- `fl_plugin_intent` — Make a musical change by intent: brighter, darker, wider, more drive and others.
+- `fl_load_plugin` — Explains why FL's API cannot load a plugin and what to do instead.
+
+All plugin tools also reach channel-rack instruments: pass `slot=-1` and the channel index as `track`.
 
 ### Presets & processing chains
 
@@ -340,6 +348,20 @@ Plain-language prompts:
 - `fl_arrange_clone_pattern` — Clone a pattern with its notes and rename the clone.
 - `fl_arrange_add_marker` — Add a named timeline marker at a bar.
 - `fl_export_midi` — Write a multi-track .mid file from an arrangement.
+
+### Playlist & arrangement
+
+- `fl_playlist_tracks` — List playlist tracks with name, mute and solo state (paged).
+- `fl_playlist_mute_track` — Mute or unmute a playlist track.
+- `fl_playlist_solo_track` — Solo a playlist track; refused when it could not be undone cleanly.
+- `fl_playlist_rename_track` — Rename a playlist track.
+- `fl_playlist_set_track_color` — Colour a playlist track by name or hex.
+- `fl_arrangement_markers` — List the timeline markers.
+- `fl_arrangement_selection` — Read the current time selection in the playlist.
+
+### Setup report
+
+- `fl_capabilities` — Report what this setup automates and which steps stay manual.
 
 ### Patterns
 

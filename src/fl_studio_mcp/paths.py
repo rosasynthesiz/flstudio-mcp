@@ -98,3 +98,7 @@ def bundled_controller() -> Path:
 def installed_controller() -> Path:
     """Where FL Studio loads the controller script from."""
     return fl_settings_dir() / "Hardware" / "FLStudioMCP" / "device_FLStudioMCP.py"
+
+
+def find_piano_roll_scripts_dir():
+    return os.environ.get('FLSTUDIO_MCP_PIANO_ROLL_SCRIPTS') or str(fl_settings_dir() / 'Piano roll scripts')
