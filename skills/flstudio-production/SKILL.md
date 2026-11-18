@@ -9,9 +9,10 @@ This is the orchestration layer for the fl-studio MCP server.
 
 ## Before you act
 
-1. Call `fl_ping` once at the start of every session. If `alive: false`,
-   stop and tell the user to open FL Studio and select FLStudioMCP as a
-   controller type. Do not retry blindly.
+1. Call `fl_ping` once at the start of every session. If `status` is not
+   `READY`, stop and tell the user the `next` step it returns (for example:
+   open FL Studio and load a project, or run `fl-studio-mcp setup`). Do not
+   retry blindly.
 2. Read the README's Limitations section so you don't promise things the FL
    API can't deliver (no plugin loading, no audio loading, no rendering).
 3. If the user is going to write Piano Roll notes, FL Studio must be the

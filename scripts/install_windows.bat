@@ -173,15 +173,13 @@ echo        Input  ^> "FLStudioMCP RX": Enable, Controller type = FLStudioMCP, P
 echo        Output ^> "FLStudioMCP TX": Port = 42  (the SAME number; setting the port
 echo          enables it, there is no Enable button; leave "Send master sync" off)
 echo        View ^> Script output should show  [FLStudioMCP] Ready
-echo   3. Start the bridge daemon and keep it running:
-echo        double-click scripts\start_daemon.bat  (or run "!DAEMON_CMD!")
-echo   4. Register the server with your Claude app:
-echo        Claude Code: just ask Claude:
-echo          "Add the fl-studio MCP server for all my projects: !SERVER_CMD!
-echo           with env FLSTUDIO_MCP_TRANSPORT=tcp"
-echo        Claude Desktop: add this under "mcpServers" in
-echo          %%APPDATA%%\Claude\claude_desktop_config.json
-"%PY%" -c "import json, sys; print('          \"fl-studio\": ' + json.dumps({'command': sys.argv[1], 'env': {'FLSTUDIO_MCP_TRANSPORT': 'tcp'}}))" "!SERVER_CMD!"
+echo   3. Check the connection (FL Studio open, a project loaded):
+echo        "!SERVER_CMD!" doctor
+echo   4. Register the server with your AI client. This prints the entry for
+echo      Claude Code, Claude Desktop, Cursor and Codex:
+echo        "!SERVER_CMD!" connect
+echo      No daemon is needed. Only the Microsoft Store build of Claude Desktop
+echo      cannot receive MIDI itself: for that one, start scripts\start_daemon.bat first.
 echo   5. Each session: in the Piano roll menu choose Tools ^> Scripting ^> MCP ^> MCP Apply
 echo        once (this arms note-writing). Then ask Claude to call fl_ping.
 echo.

@@ -322,20 +322,40 @@ def test_every_status_has_a_next_step():
 
 # -- connect -----------------------------------------------------------------
 
-def test_client_snippets_are_valid():
+def test_client_snippets_are_valid(monkeypatch):
+    monkeypatch.setattr(setup_cli, "launch_command", lambda: ("uvx", ["fl-studio-mcp"]))
     snippets = setup_cli.client_snippets()
     entry = json.loads(snippets["claude-desktop"])["mcpServers"]["fl-studio"]
-    assert entry["command"] == "uvx" and entry["args"][-1] == "fl-studio-mcp"
-    # a development build must be launched from git, not from the older PyPI release
-    assert ("--from" in entry["args"]) == ("dev" in setup_cli.__version__)
+    assert entry == {"command": "uvx", "args": ["fl-studio-mcp"]}
+    assert snippets["claude-code"] == "claude mcp add fl-studio -- uvx fl-studio-mcp"
     assert "FLSTUDIO_MCP_TRANSPORT" not in "".join(snippets.values())   # no env needed in v2
 
 
-def test_released_version_uses_pypi(monkeypatch):
+def _fake_env(monkeypatch, tmp_path, *dirs):
+    bindir = tmp_path.joinpath(*dirs)
+    bindir.mkdir(parents=True)
+    name = "fl-studio-mcp.exe" if setup_cli.sys.platform == "win32" else "fl-studio-mcp"
+    (bindir / name).write_text("")
+    monkeypatch.setattr(setup_cli.sys, "executable", str(bindir / "python"))
+    return bindir / name
+
+
+def test_local_install_prints_its_own_path(monkeypatch, tmp_path):
+    exe = _fake_env(monkeypatch, tmp_path, "my repo", ".venv", "bin")
+    assert setup_cli.launch_command() == (str(exe), [])
+    assert '"%s"' % exe in setup_cli.client_snippets()["claude-code"]   # path with a space
+
+
+def test_uvx_dev_build_launches_from_git(monkeypatch, tmp_path):
+    _fake_env(monkeypatch, tmp_path, ".cache", "uv", "archive-v0", "abc", "bin")
+    monkeypatch.setattr(setup_cli, "__version__", "2.0.0.dev0")
+    assert setup_cli.launch_command() == ("uvx", ["--from", setup_cli.GIT_SOURCE, "fl-studio-mcp"])
+
+
+def test_uvx_release_launches_from_pypi(monkeypatch, tmp_path):
+    _fake_env(monkeypatch, tmp_path, ".cache", "uv", "archive-v0", "abc", "bin")
     monkeypatch.setattr(setup_cli, "__version__", "2.0.0")
-    entry = json.loads(setup_cli.client_snippets()["cursor"])["mcpServers"]["fl-studio"]
-    assert entry == {"command": "uvx", "args": ["fl-studio-mcp"]}
-    assert setup_cli.client_snippets()["claude-code"] == "claude mcp add fl-studio -- uvx fl-studio-mcp"
+    assert setup_cli.launch_command() == ("uvx", ["fl-studio-mcp"])
 
 
 def test_connect_rejects_unknown_client(capsys):

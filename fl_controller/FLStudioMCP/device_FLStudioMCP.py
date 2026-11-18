@@ -2,26 +2,26 @@
 # url=https://github.com/rosasynthesiz/flstudio-mcp
 # receiveFrom=
 # supportedDevices=FLStudioMCP,FLStudioMCP RX
-"""FLStudioMCP controller script -- v0.2 MIDI-only transport.
+"""FLStudioMCP controller script -- MIDI SysEx transport.
 
-Lives at:
-    Documents/Image-Line/FL Studio/Settings/Hardware/FLStudioMCP/device_FLStudioMCP.py
+Installed by ``fl-studio-mcp setup`` to:
+    <FL user data>/FL Studio/Settings/Hardware/FLStudioMCP/device_FLStudioMCP.py
 
-v0.1 tried to use a file-based JSON queue. That doesn't work: FL's
-controller-script Python sandbox blocks every form of file write (open(),
-os.open, os.makedirs all raise SystemError or TypeError with no useful
-message). This v0.2 rewrite uses MIDI SysEx for both directions.
+FL's controller-script sandbox blocks file writes and sockets, so MIDI SysEx
+is the only two-way channel to an outside process.
 
-To activate in FL:
-  1. Create two loopMIDI ports (Windows) or two IAC Driver buses (macOS):
-        FLStudioMCP RX   -- the MCP server's OUTPUT, FL's INPUT
-        FLStudioMCP TX   -- FL's OUTPUT,           the MCP server's INPUT
-  2. Options > MIDI Settings:
-        Input  list -> enable "FLStudioMCP RX", Controller type = FLStudioMCP,
-                       Port = some number (e.g. 42).
-        Output list -> enable "FLStudioMCP TX", Port = SAME number (42).
-  3. The matching port number is how FL's `device.midiOutSysex(...)` routes
-     to the right output. Without it, our responses go nowhere.
+How FL links this script:
+  * macOS / Linux: the server creates two virtual MIDI ports that share the
+    name "FLStudioMCP". That name is listed under ``supportedDevices`` above,
+    so FL links this script, pairs input and output on one Port number and
+    enables both by itself. Nothing to do in MIDI Settings.
+  * Windows (loopMIDI ports "FLStudioMCP RX" and "FLStudioMCP TX"):
+    Options > MIDI Settings
+        Input  list -> "FLStudioMCP RX": Enable, Controller type = FLStudioMCP,
+                       Port = any number.
+        Output list -> "FLStudioMCP TX": Port = the SAME number.
+    The matching Port number is how FL's ``device.midiOutSysex(...)`` finds
+    the output; without it the replies go nowhere.
 
 Wire format: see src/fl_studio_mcp/protocol.py.
 

@@ -1,5 +1,20 @@
 # Architecture
 
+> **Version 2 notes** (the rest of this page describes the transport, which is unchanged):
+> - On macOS and Linux the server creates the two MIDI ports itself, both named
+>   `FLStudioMCP`. The controller script lists that name under
+>   `supportedDevices`, so FL links the script, pairs input and output on one
+>   Port number and enables both without any step in MIDI Settings. Windows
+>   still uses two loopMIDI ports, `FLStudioMCP RX` and `FLStudioMCP TX`.
+> - The first MCP server to start owns the MIDI ports and serves the same
+>   line protocol as the daemon on `127.0.0.1:9787`; later servers join it,
+>   and one of them takes over if the owner exits.
+> - The controller reports a project token (controller session + a counter
+>   that moves on every project load). Writes and undo carry it, and the
+>   controller refuses a command whose token is stale.
+> - `fl_ping` now returns a `status` code and a `next` step; see
+>   `setup_cli.STATUS_HELP`.
+
 ## Why MIDI, not files
 
 FL Studio runs controller scripts in a sandboxed Python interpreter. The

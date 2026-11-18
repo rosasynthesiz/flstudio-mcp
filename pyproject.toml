@@ -5,14 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "fl-studio-mcp"
 version = "2.0.0.dev0"
-description = "AI-powered FL Studio control via MCP - mixing, composition, plugin control, and mix diagnosis through natural language"
+description = "FL Studio MCP server: control FL Studio with Claude, Cursor and other AI assistants - AI mixing, mix diagnosis, plugin control, piano roll and patterns"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
     { name = "rosasynthesiz" },
 ]
 requires-python = ">=3.10"
-keywords = ["mcp", "fl-studio", "music-production", "ai", "claude", "fruityloops"]
+keywords = ["mcp", "mcp-server", "model-context-protocol", "fl-studio", "flstudio", "fruity-loops", "fruityloops", "daw", "music-production", "mixing", "midi", "ai", "ai-music", "claude", "cursor", "codex"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

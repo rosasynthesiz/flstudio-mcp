@@ -8,8 +8,13 @@ or, after ``pip install -e .``, with::
 
     fl-studio-mcp
 
-To see what MIDI ports the host OS exposes (useful when troubleshooting the
-loopMIDI / IAC Driver setup)::
+One-time setup, connection check and client entry::
+
+    fl-studio-mcp setup
+    fl-studio-mcp doctor
+    fl-studio-mcp connect
+
+To see what MIDI ports the host OS exposes::
 
     fl-studio-mcp --list-ports
 """
@@ -61,9 +66,11 @@ CONNECTION
 LIMITS YOU SHOULD KNOW ABOUT (these are FL API limitations, not server bugs)
   - Cannot load new VST/AU plugin instances. You can only control plugins
     that already exist in the project.
-  - Cannot create new patterns from scratch. Work with existing patterns,
-    or clone via the Piano Roll pyscript.
-  - Tempo writes are sometimes ignored if FL is in a modal dialog.
+  - Cannot load audio files or render audio.
+  - Patterns: fl_arrange_new_pattern names and selects the next EMPTY
+    pattern, fl_arrange_clone_pattern copies one. Patterns cannot be deleted.
+  - FL refuses every write while a dialog is open (the welcome screen
+    counts). The error says FL_BUSY; ask the user to close it.
 
 When the user asks for something outside these limits, explain the limit
 clearly rather than retrying.
