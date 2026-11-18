@@ -5,15 +5,15 @@ description: Use this skill whenever the user wants to control FL Studio from Cl
 
 # FL Studio production skill
 
-This is the orchestration layer. Deep content lives in `references/`.
+This is the orchestration layer for the fl-studio MCP server.
 
 ## Before you act
 
 1. Call `fl_ping` once at the start of every session. If `alive: false`,
    stop and tell the user to open FL Studio and select FLStudioMCP as a
    controller type. Do not retry blindly.
-2. Read `references/limits.md` so you don't promise things the FL API can't
-   deliver (no plugin loading, no new-pattern creation, etc).
+2. Read the README's Limitations section so you don't promise things the FL
+   API can't deliver (no plugin loading, no audio loading, no rendering).
 3. If the user is going to write Piano Roll notes, FL Studio must be the
    focused window. Warn them once at the start.
 
@@ -23,10 +23,9 @@ This is the orchestration layer. Deep content lives in `references/`.
 |---|---|
 | Tempo, play, stop | `fl_set_tempo`, `fl_play`, `fl_stop`, `fl_toggle_play` |
 | Where are we in the song | `fl_get_song_position` |
-| Drum patterns | `fl_channel_set_grid_bit` (Phase 1) — NOT the Piano Roll |
-| Mixer levels | `fl_mixer_set_volume`, `_set_pan` (Phase 2) |
-| Melody in a raga | `fl_preset_write_raga_melody` (Phase 6) which calls Piano Roll under the hood |
-| Kuthu beat | `fl_preset_write_kuthu_pattern` (Phase 6) |
+| Drum patterns | `fl_set_step_grid`, `fl_get_step_grid` — NOT the Piano Roll |
+| Mixer levels | `fl_set_mixer_volume`, `fl_set_mixer_pan` |
+| Melody in a raga | `fl_write_raga_melody`, which writes through the Piano Roll bridge |
 | Read a plugin's knobs | `fl_plugin_list`, `fl_plugin_get_params` (names + normalised 0..1 values) |
 | Change one knob | `fl_plugin_set_param` — answers `verified` / `attempts`; a `hint` means FL refused the value |
 | Change several knobs of one plugin | `fl_plugin_set_params` — one paced burst, ONE undo step; prefer it over repeating the single tool |
@@ -50,11 +49,3 @@ string (`3.6dB`, `500Hz`) to know what a value means, and prefer
   FLStudioMCP in MIDI Settings.
 - `FLCommandFailed` with `code=client` → bad input. Show the user what was
   wrong and ask for a correction.
-
-## References
-
-- `references/limits.md` — FL API constraints.
-- `references/ragas.md` — How the Carnatic raga preset pack is organised.
-- `references/kuthu.md` — Kuthu / gaana rhythm vocabulary.
-
-(These references are written as Phase 6 ships.)
