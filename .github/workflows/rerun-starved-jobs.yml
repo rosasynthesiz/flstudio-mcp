@@ -1,0 +1,38 @@
+name: Re-run jobs that never got a runner
+
+# GitHub sometimes cancels a job because no macOS runner was free ("The job was
+# not acquired by Runner of type hosted"). Such a job has zero steps, yet it
+# turns the whole CI run red although nothing failed. This re-runs just those
+# jobs, for at most two extra attempts. A run where any job really failed is
+# left alone.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  actions: write
+
+jobs:
+  rerun:
+    if: >-
+      github.event.workflow_run.conclusion == 'failure'
+      && github.event.workflow_run.run_attempt < 3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Re-run when every unsuccessful job has zero steps
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          jobs="$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100")"
+          total="$(echo "$jobs" | jq '[.jobs[] | select(.conclusion != "success" and .conclusion != "skipped")] | length')"
+          starved="$(echo "$jobs" | jq '[.jobs[] | select(.conclusion == "cancelled" and (.steps | length) == 0)] | length')"
+          echo "unsuccessful jobs: $total, never got a runner: $starved"
+          if [ "$total" -gt 0 ] && [ "$total" -eq "$starved" ]; then
+            gh run rerun "$RUN_ID" --repo "$REPO" --failed
+          else
+            echo "A job really failed: not re-running."
+          fi
