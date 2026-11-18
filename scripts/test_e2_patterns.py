@@ -53,6 +53,21 @@ def main() -> int:
     async def call(name, args):
         return unwrap(await m.call_tool(name, args))
 
+    # Warm up: the first process creates the virtual MIDI ports and FL
+    # re-attaches within a second or two; a tool call before that times out.
+    async def warm():
+        for _ in range(20):
+            try:
+                if (unwrap(await m.call_tool("fl_ping", {})) or {}).get("ok"):
+                    return True
+            except Exception:
+                pass
+            await asyncio.sleep(0.5)
+        return False
+
+    if not asyncio.run(warm()):
+        print("WARNING: FL Studio did not answer a ping within 10 s")
+
     fails = []
 
     def check(label, cond, extra=""):
@@ -93,6 +108,12 @@ def main() -> int:
           [p["pattern"] for p in full.get("patterns", [])])
 
     # 2. create -----------------------------------------------------------
+    # A fresh project has no OTHER pattern to select later: make one first.
+    # (fl_arrange_new_pattern selects what it creates, so this must happen
+    # before E2TEST or the "select another" step would target the current one.)
+    second = None
+    if before_count == 0:
+        second = asyncio.run(call("fl_arrange_new_pattern", {"name": "E2TEST2"}))
     created = asyncio.run(call("fl_arrange_new_pattern", {"name": "E2TEST"}))
     t = created.get("index")
     check("created test pattern", bool(created.get("ok")) and bool(t),
@@ -111,18 +132,8 @@ def main() -> int:
               repr((rr.get("before") or {}).get("name")))
 
         # 4. select another ----------------------------------------------
-        # A fresh project may have no OTHER pattern to select: create a
-        # helper one (renamed to TMP_ in cleanup, like the main test one).
-        second = None
-        if t != 1:
-            other = 1
-        else:
-            second = asyncio.run(call("fl_arrange_new_pattern",
-                                      {"name": "E2TEST2"}))
-            other = second.get("index")
-            if not other:
-                print("ABORT: no second pattern for the select step")
-                return 1
+        # E2TEST2 (created above on an empty project) or any earlier pattern.
+        other = 1
         sr = asyncio.run(call("fl_pattern_select", {"index": other}))
         print(f"select {other}: ok={sr.get('ok')} prev_index={sr.get('prev_index')}")
         check("select landed (re-read current)", (sr.get("after") or {}).get("current") == other)
