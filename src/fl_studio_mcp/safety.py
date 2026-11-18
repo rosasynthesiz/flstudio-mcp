@@ -28,7 +28,6 @@ from .protocol import (
     CMD_CHANNEL_GET_GRID,
     CMD_GET_TEMPO,
     CMD_PATTERN_GET_LENGTH,
-    CMD_CHANNEL_GET_GRID_BIT,
     CMD_PLAYLIST_GET_TRACK,
 )
 
@@ -170,9 +169,6 @@ def take_snapshot(bridge, scope):
         return bridge.call(CMD_PATTERN_GET_LENGTH, {"index": int(arg)})
     if kind == "playlist_track":
         return bridge.call(CMD_PLAYLIST_GET_TRACK, {"track": int(arg)})
-    if kind == "grid_bit":
-        ch, idx = (int(x) for x in arg.split(":"))
-        return bridge.call(CMD_CHANNEL_GET_GRID_BIT, {"channel": ch, "index": idx})
     if kind == "mixer_all":
         from .connection import fetch_all_pages
         return fetch_all_pages(bridge, CMD_MIXER_LIST_TRACKS, "tracks")

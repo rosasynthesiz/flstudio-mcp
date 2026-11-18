@@ -19,6 +19,18 @@ def test_linux_does_not_claim_automated_note_trigger(monkeypatch):
     assert not any('IAC Driver' in x for x in result['manual_steps'])
 
 
+@pytest.mark.parametrize('platform,expects_midi_step', [('darwin', False), ('win32', True)])
+def test_manual_steps_match_the_v2_setup(monkeypatch, platform, expects_midi_step):
+    monkeypatch.setattr(capabilities, 'sys', SimpleNamespace(platform=platform))
+    monkeypatch.setattr(connection, 'sys', SimpleNamespace(platform=platform))
+    monkeypatch.delenv('FLSTUDIO_MCP_VIRTUAL_PORTS', raising=False)
+    result = capabilities.describe_capabilities()
+    asks_for_ports = any('loopMIDI' in x or 'SAME port number' in x for x in result['manual_steps'])
+    assert asks_for_ports is expects_midi_step
+    assert result['midi_ports']['virtual_ports_enabled'] is (platform == 'darwin')
+    assert not any('cannot create patterns' in x for x in result['fl_api_limits'])
+
+
 @pytest.mark.parametrize('params,tier', [([], 'empty'),
     ([{'name': 'Param 1', 's': '.5'}], 'opaque'),
     ([{'name': 'Cutoff', 's': ''}], 'partial'),

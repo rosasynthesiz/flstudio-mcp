@@ -298,8 +298,5 @@ CMD_ARRANGE_GET_SELECTION = "arrange_get_selection"
 
 CMD_ARRANGE_GET_MARKERS = "arrange_get_markers"
 
-CMD_CHANNEL_GET_GRID_BIT = "channel_get_grid_bit"
 
-CMD_CHANNEL_SET_GRID_BIT = "channel_set_grid_bit"
 
-CMD_CHANNEL_CLEAR_GRID = "channel_clear_grid"

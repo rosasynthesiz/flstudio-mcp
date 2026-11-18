@@ -1491,79 +1491,6 @@ def _h_arrange_get_selection(p):
             "current_time": _safe(lambda: arrangement.currentTime(0))}
 
 
-def _h_channel_clear_grid(p):
-    ch = int(p["channel"])
-    steps = int(p.get("steps", 16))
-    n = 0
-    for i in range(steps):
-        try:
-            channels.setGridBit(ch, i, 0)
-            n += 1
-        except Exception:
-            break
-    return {"ok": True, "channel": ch, "cleared": n}
-
-
-def _h_channel_get_grid_bit(p):
-    """One grid bit -- used as the safe_write snapshot source."""
-    ch = int(p["channel"])
-    idx = int(p["index"])
-    if not 0 <= ch < channels.channelCount() or not 0 <= idx < 256:
-        raise ValueError('channel or step index outside supported grid bounds')
-    return {"channel": ch, "index": idx,
-            "value": 1 if channels.getGridBit(ch, idx) else 0}
-
-
-def _h_channel_set_grid_bit(p):
-    ch = int(p["channel"])
-    idx = int(p["index"])
-    if not 0 <= ch < channels.channelCount() or not 0 <= idx < 256:
-        raise ValueError('channel or step index outside supported grid bounds')
-    val = 1 if p.get("value", 1) else 0
-    try:
-        channels.setGridBit(ch, idx, val)
-    except Exception as e:
-        return {"ok": False, "error": "setGridBit: %s" % e}
-    return {"ok": True, "channel": ch, "index": idx,
-            "value": 1 if channels.getGridBit(ch, idx) else 0}
-
-
-def _h_pattern_get_length(p):
-    """Pattern length. FL's getPatternLength returns beats; also report bars
-    (assuming 4/4). Raw value included so the server can re-derive if needed."""
-    pn = int(p["pattern"])
-    try:
-        raw = patterns.getPatternLength(pn)
-    except Exception as e:
-        return {"ok": False, "error": "getPatternLength: %s" % e}
-    return {"ok": True, "pattern": pn, "length_beats": raw,
-            "length_bars": (raw / 4.0) if isinstance(raw, (int, float)) else None,
-            "raw": raw}
-
-
-def _h_pattern_rename(p):
-    """Rename a pattern by its 1-based number."""
-    pn = int(p["pattern"])
-    name = str(p.get("name", ""))
-    try:
-        patterns.setPatternName(pn, name)
-    except Exception as e:
-        return {"ok": False, "error": "setPatternName: %s" % e}
-    return {"ok": True, "pattern": pn, "name": patterns.getPatternName(pn)}
-
-
-def _h_pattern_select(p):
-    """Select (jump to) a pattern by its 1-based number. The note bridge then
-    writes into THIS pattern."""
-    pn = int(p["pattern"])
-    try:
-        patterns.jumpToPattern(pn)
-    except Exception as e:
-        return {"ok": False, "error": "jumpToPattern: %s" % e}
-    return {"ok": True, "pattern": pn, "name": patterns.getPatternName(pn),
-            "selected": patterns.patternNumber()}
-
-
 def _h_playlist_get_track(p):
     """One playlist track's state -- used as the safe_write snapshot source."""
     t = int(p["track"])
@@ -1627,9 +1554,6 @@ def _h_playlist_track_list(p):
 
 
 _HANDLERS = {
-    'pattern_select': _h_pattern_select,
-    'pattern_rename': _h_pattern_rename,
-    'pattern_get_length': _h_pattern_get_length,
     'playlist_track_list': _h_playlist_track_list,
     'playlist_get_track': _h_playlist_get_track,
     'playlist_mute_track': _h_playlist_mute_track,
@@ -1638,9 +1562,6 @@ _HANDLERS = {
     'playlist_set_track_color': _h_playlist_set_track_color,
     'arrange_get_selection': _h_arrange_get_selection,
     'arrange_get_markers': _h_arrange_get_markers,
-    'channel_get_grid_bit': _h_channel_get_grid_bit,
-    'channel_set_grid_bit': _h_channel_set_grid_bit,
-    'channel_clear_grid': _h_channel_clear_grid,
 
     "ping": _h_ping,
     "get_tempo": _h_get_tempo,

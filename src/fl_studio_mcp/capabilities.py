@@ -25,7 +25,7 @@ def describe_capabilities() -> dict:
     from .paths import find_piano_roll_scripts_dir
 
     plat = _platform_name()
-    transport = os.environ.get("FLSTUDIO_MCP_TRANSPORT", "direct").lower()
+    transport = os.environ.get("FLSTUDIO_MCP_TRANSPORT", "auto").lower()
     virtual = _virtual_ports_enabled()
     # Run-last-script shortcut per OS (matches pyscript_trigger).
     hotkey = {"win32": "Ctrl+Alt+Y", "darwin": "Cmd+Opt+Y"}.get(plat, "Ctrl+Alt+Y")
@@ -36,7 +36,7 @@ def describe_capabilities() -> dict:
         focus_auto = True
         focus_note = None
     elif plat == "darwin":
-        focus = "activate FL via AppleScript + Cmd+Opt+Y"
+        focus = "activate FL via AppleScript + Cmd+Opt+Y through System Events"
         focus_auto = True
         focus_note = ("keystroke send needs macOS Accessibility permission for "
                       "the process running the daemon/server")
@@ -47,12 +47,14 @@ def describe_capabilities() -> dict:
 
     return {
         "platform": plat,
-        "transport": transport,                       # 'direct' | 'tcp'
+        "transport": transport,          # 'auto' (default) | 'direct' | 'tcp' (= auto)
         "midi_ports": {
             "virtual_ports_enabled": virtual,
-            "note": ("virtual creation is configured; actual port creation/discovery must be verified"
+            "note": ("the server creates its own MIDI ports (one shared name, "
+                     "'FLStudioMCP') and FL Studio links them by itself; an "
+                     "existing FLStudioMCP RX/TX pair is used first"
                      if virtual else
-                     "named ports must already exist (loopMIDI on Windows, or set env)"),
+                     "the two named ports must already exist (loopMIDI on Windows)"),
         },
         "note_bridge": {
             "hotkey": hotkey,
@@ -68,7 +70,8 @@ def describe_capabilities() -> dict:
         "manual_steps": _manual_steps(plat, virtual),
         "fl_api_limits": [
             "cannot load new plugin/VST instances",
-            "cannot create patterns from scratch (clone instead)",
+            "patterns: the next empty one can be named and selected, and one can "
+            "be cloned; patterns cannot be deleted",
             "cannot load audio files or render audio",
             "preset recall is walled off for some VSTs (e.g. Serum)",
         ],
@@ -82,7 +85,8 @@ def _automated(plat: str) -> list[str]:
         "plugin parameter read/write (native + VST, by name or index)",
         "mixing/compression/reverb/delay intents (calibrated)",
         "mix diagnosis + gated, reversible fixes",
-        "pattern clone/name + arrangement markers",
+        "patterns (list/select/rename/length/new/clone) + arrangement markers",
+        "playlist tracks (list/mute/solo/rename/colour)",
         "MIDI export to a .mid file",
     ]
     if plat in ('win32', 'darwin'):
@@ -92,16 +96,24 @@ def _automated(plat: str) -> list[str]:
 
 def _manual_steps(plat: str, virtual: bool) -> list[str]:
     steps = []
-    if not virtual:
+    if virtual:
+        # macOS / Linux: no MIDI step at all.
+        steps.append("first time only: open FL Studio after the server is running "
+                     "(or restart FL once) so it links the controller by itself")
+        if plat == "linux":
+            steps.append("Linux is untested: the ALSA virtual ports and FL under "
+                         "Wine may need manual MIDI Settings")
+    else:
         if plat == "win32":
             steps.append("create the two loopMIDI ports (FLStudioMCP RX / TX)")
-        elif plat == 'darwin':
-            steps.append("create the two IAC Driver buses (FLStudioMCP RX / TX), "
-                         "or set FLSTUDIO_MCP_VIRTUAL_PORTS=1")
+        elif plat == "darwin":
+            steps.append("virtual ports are turned off: create two IAC Driver buses "
+                         "(FLStudioMCP RX / TX) or unset FLSTUDIO_MCP_VIRTUAL_PORTS")
         else:
-            steps.append('configure and verify ALSA MIDI ports on the Linux host; Linux FL integration is experimental')
-    steps.append("in FL: enable FLStudioMCP RX (input, Controller type=FLStudioMCP) "
-                 "and FLStudioMCP TX (output) with the SAME port number")
+            steps.append("configure and verify ALSA MIDI ports on the Linux host; "
+                         "Linux FL integration is experimental")
+        steps.append("in FL: enable FLStudioMCP RX (input, Controller type=FLStudioMCP) "
+                     "and FLStudioMCP TX (output) with the SAME port number")
     steps.append("run 'MCP_Apply' once from the Piano roll Scripting menu each session")
     if plat == "darwin":
         steps.append("grant Accessibility permission so note-write hotkeys reach FL")

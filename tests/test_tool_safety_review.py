@@ -17,11 +17,8 @@ from fl_studio_mcp.tools import vst
     ('fl_playlist_solo_track', {'track': 1}),
     ('fl_playlist_rename_track', {'track': 1, 'name': 'test'}),
     ('fl_playlist_set_track_color', {'track': 1, 'color': 'blue'}),
-    ('fl_channel_set_step', {'channel': 0, 'index': 0}),
-    ('fl_channel_set_steps', {'channel': 0, 'steps': [0, 4]}),
-    ('fl_channel_clear_grid', {'channel': 0}),
-    ('fl_pattern_select', {'pattern': 1}),
-    ('fl_pattern_rename', {'pattern': 1, 'name': 'test'}),
+    ('fl_pattern_select', {'index': 1}),
+    ('fl_pattern_rename', {'index': 1, 'name': 'test'}),
 ])
 async def test_new_mutations_preview_without_daw_calls(monkeypatch, name, args):
     class NoDaw:
@@ -44,8 +41,7 @@ def test_loader_never_claims_plugin_was_loaded(generator):
     assert result['supported'] is False and result['ok'] is False
 
 
-@pytest.mark.parametrize('scope,expected', [('playlist_track:3', ('playlist_get_track', {'track': 3})),
-    ('grid_bit:2:7', ('channel_get_grid_bit', {'channel': 2, 'index': 7}))])
+@pytest.mark.parametrize('scope,expected', [('playlist_track:3', ('playlist_get_track', {'track': 3}))])
 def test_added_snapshot_scope_addresses_exact_target(scope, expected):
     class Bridge:
         calls = []
