@@ -219,11 +219,40 @@ def test_joiner_takes_over_when_owner_is_gone(monkeypatch, clean_bridge):
         successor.close()
 
 
-def test_explicit_tcp_never_takes_over(monkeypatch, clean_bridge):
+def test_old_tcp_setting_works_without_a_daemon(monkeypatch, clean_bridge):
+    """Version 1 configs (and listings) set TRANSPORT=tcp; no daemon may be running."""
+    from fl_studio_mcp import daemon
+    fake = _Backend()
+    _mac(monkeypatch, fake)
     monkeypatch.setenv("FLSTUDIO_MCP_TRANSPORT", "tcp")
+    monkeypatch.setattr(conn, "_daemon_listening", lambda *a, **k: False)
+    monkeypatch.setattr(daemon, "serve_in_background", lambda b, h, p: None)
     bridge = conn.get_bridge()
-    assert isinstance(bridge, conn.TCPBridge) and not bridge.auto
-    assert conn._take_over(bridge) is None
+    try:
+        assert isinstance(bridge, conn.FLBridge)
+    finally:
+        bridge.close()
+
+
+def test_old_tcp_setting_still_uses_a_running_daemon(monkeypatch, clean_bridge):
+    monkeypatch.setenv("FLSTUDIO_MCP_TRANSPORT", "tcp")
+    monkeypatch.setattr(conn, "_daemon_listening", lambda *a, **k: True)
+    assert isinstance(conn.get_bridge(), conn.TCPBridge)
+
+
+def test_direct_never_shares_or_joins(monkeypatch, clean_bridge):
+    from fl_studio_mcp import daemon
+    fake = _Backend()
+    _mac(monkeypatch, fake)
+    shared = []
+    monkeypatch.setenv("FLSTUDIO_MCP_TRANSPORT", "direct")
+    monkeypatch.setattr(conn, "_daemon_listening", lambda *a, **k: True)
+    monkeypatch.setattr(daemon, "serve_in_background", lambda b, h, p: shared.append(b))
+    bridge = conn.get_bridge()
+    try:
+        assert isinstance(bridge, conn.FLBridge) and shared == []
+    finally:
+        bridge.close()
 
 
 # -- doctor: a code and one next step ----------------------------------------

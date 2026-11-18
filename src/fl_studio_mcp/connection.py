@@ -659,16 +659,17 @@ def get_bridge() -> FLBridge | TCPBridge:
     ``FLSTUDIO_MCP_TRANSPORT``:
       * unset / ``auto`` -- join a running bridge, else own the MIDI ports and
         share them (no daemon to start by hand);
-      * ``tcp``          -- always talk to the daemon (:class:`TCPBridge`);
-      * ``direct``       -- always open MIDI in this process (:class:`FLBridge`).
+      * ``tcp``          -- same as ``auto``. Version 1 configs set it to reach
+        the daemon; it must keep working when no daemon is running, because
+        many published client configs still carry it;
+      * ``direct``       -- always open MIDI in this process (:class:`FLBridge`)
+        and never share it.
     """
     global _bridge
     with _bridge_lock:
         if _bridge is None:
             transport = os.environ.get("FLSTUDIO_MCP_TRANSPORT", "auto").lower()
-            if transport == "tcp":
-                _bridge = TCPBridge()
-            elif transport == "direct":
+            if transport == "direct":
                 _bridge = FLBridge()
                 _bridge.open()
             else:
