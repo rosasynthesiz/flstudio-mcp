@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fl-studio-mcp"
-version = "2.0.0.dev0"
+version = "2.0.0"
 description = "FL Studio MCP server: control FL Studio with Claude, Cursor and other AI assistants - AI mixing, mix diagnosis, plugin control, piano roll and patterns"
 readme = "README.md"
 license = { text = "MIT" }

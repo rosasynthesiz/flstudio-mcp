@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Version 2 (will be released as 2.0.0)
+## [2.0.0] - 2026-11-18
+
 - **One-command setup:** `fl-studio-mcp setup` installs the controller script (now shipped inside the package), waits for FL Studio and reports READY only after a real ping. `fl-studio-mcp doctor` prints one status code and the next step; `fl-studio-mcp connect` prints the client entry.
 - **macOS / Linux need no MIDI setup:** the server creates virtual ports with one shared name and FL Studio links, pairs and enables them by itself. On by default; an existing IAC or loopMIDI pair is used first; `FLSTUDIO_MCP_VIRTUAL_PORTS=0` turns it off. Builds on #11 by David Bertram.
 - **No daemon to start:** the first server owns the MIDI ports and shares them; later servers join; a joiner takes over if the owner exits. `FLSTUDIO_MCP_TRANSPORT` and the daemon still work.
@@ -60,5 +61,6 @@ First public release.
 ### Removed
 - One-off probes and dead `detect_cleanup` controller code.
 
-[Unreleased]: https://github.com/rosasynthesiz/flstudio-mcp/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/rosasynthesiz/flstudio-mcp/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/rosasynthesiz/flstudio-mcp/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/rosasynthesiz/flstudio-mcp/releases/tag/v1.0.0

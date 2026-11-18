@@ -6,12 +6,12 @@
     "url": "https://github.com/rosasynthesiz/flstudio-mcp",
     "source": "github"
   },
-  "version": "1.0.0",
+  "version": "2.0.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "fl-studio-mcp",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "transport": {
         "type": "stdio"
       }
