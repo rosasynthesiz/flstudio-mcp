@@ -17,7 +17,7 @@
 
 `flstudio-mcp` is a Model Context Protocol (MCP) server that connects FL Studio to AI assistants: Claude Code, Claude Desktop, Cursor, Codex, or any other MCP client. Ask for a mix diagnosis, a vocal chain, a chord progression in a particular scale, or a full arrangement, and the assistant carries it out inside your open FL Studio project through FL's scripting API and a set of calibrated, safety-checked tools.
 
-- **90 tools** for the mixer, plugins, piano roll, step sequencer, patterns, playlist, routing and transport
+- **91 tools** for the mixer, plugins, piano roll, step sequencer, patterns, playlist, routing and transport
 - **One-command setup on macOS**, with no MIDI configuration
 - **Every change can be undone**, and an undo never touches a different project
 - **Windows and macOS**, FL Studio 2025 and 2026
@@ -94,7 +94,7 @@ these commands yet; use the commands above until 2.0.0 is released.
 - **Chords-to-MIDI** transcription of polyphonic audio (keys, piano, guitar) with Spotify's Basic Pitch, as notes for the piano roll or a `.mid` file.
 - **Drums to MIDI**: a drum loop or stem to kick, snare, clap, closed and open hi-hat, aligned to the beat, as a `.mid` or straight into the step sequencer of the channels you choose (one undo step).
 
-The server exposes 90 tools, plus 6 live resources (project, mixer, transport, channels, patterns, status) that Claude can read directly.
+The server exposes 91 tools, plus 6 live resources (project, mixer, transport, channels, patterns, status) that Claude can read directly.
 
 ## What sets it apart
 
@@ -246,7 +246,7 @@ Plain-language prompts:
 
 ## Tools
 
-90 tools, grouped by area.
+91 tools, grouped by area.
 
 ### Transport
 
@@ -371,6 +371,10 @@ All plugin tools also reach channel-rack instruments: pass `slot=-1` and the cha
 - `fl_pattern_select` — Switch the working pattern; one undo step.
 - `fl_pattern_rename` — Rename a pattern; one undo step.
 - `fl_pattern_get_length` — Read a pattern's length in beats, bars and ticks.
+
+### Debugging
+
+- `fl_screenshot` — Capture the screen (or a region) to a PNG so the assistant can see FL; macOS and Windows, never writes outside its own shots folder.
 
 ### Audio analysis
 
