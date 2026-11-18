@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-__version__ = "0.3.0"
+try:  # one version: pyproject.toml
+    from importlib.metadata import version as _pkg_version
+    __version__ = _pkg_version("fl-studio-mcp")
+except Exception:  # pragma: no cover - source checkout without metadata
+    __version__ = "2.0.0.dev0"
 
 from .connection import (
     FLBridge,

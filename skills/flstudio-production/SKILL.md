@@ -29,6 +29,15 @@ This is the orchestration layer for the fl-studio MCP server.
 | Read a plugin's knobs | `fl_plugin_list`, `fl_plugin_get_params` (names + normalised 0..1 values) |
 | Change one knob | `fl_plugin_set_param` — answers `verified` / `attempts`; a `hint` means FL refused the value |
 | Change several knobs of one plugin | `fl_plugin_set_params` — one paced burst, ONE undo step; prefer it over repeating the single tool |
+| List / pick / rename patterns | `fl_pattern_list` (paginated), `fl_pattern_select`, `fl_pattern_rename` — select/rename are one rollback step each |
+| How long is a pattern | `fl_pattern_get_length` — beats (FL's native unit) + derived bars/ticks via the project PPQ |
+
+Pattern writes return `verified` from an independent readback. If `ok` is false,
+inspect the error and state before continuing. Failed undo returns
+`recovery_retained: true`; the original recovery record stays available for a
+retry. Full pattern names that exceed the MIDI budget are rejected rather than
+truncated, so a list entry with `trunc: true` may not support a full-name read or
+write. Undo never restores a shortened name.
 
 ### Plugin parameter recipe
 

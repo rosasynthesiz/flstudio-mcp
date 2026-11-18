@@ -30,42 +30,32 @@ def register(mcp: FastMCP) -> None:
     def fl_ping() -> dict:
         """Check that FL Studio is running and the controller script is loaded.
 
-        Returns the controller's reported FL Studio version, the age of the
-        last heartbeat in seconds, and the MIDI port names in use. Call this
-        first when something seems wrong.
+        Returns `status` (READY, FL_CLOSED, CONTROLLER_MISSING, NO_HEARTBEAT,
+        VERSION_MISMATCH, ...) and `next`: the one step that fixes it. Call
+        this first, and again whenever another tool fails.
         """
-        bridge = get_bridge()
-        port_info = {
-            "port_to_fl": protocol.port_to_fl_name(),
-            "port_from_fl": protocol.port_from_fl_name(),
+        from .. import setup_cli
+
+        report = setup_cli.diagnose(wait=3.0)
+        out = {
+            "alive": report["status"] == "READY",
+            "status": report["status"],
+            "next": report["next"],
+            "server_version": report["server_version"],
         }
-        age = bridge.heartbeat_age()
-        if age is None:
-            return {
-                "alive": False,
-                "reason": "No heartbeat received. FL Studio is closed, the "
-                          "FLStudioMCP controller is not selected, or the "
-                          "loopMIDI / IAC output port number does not match "
-                          "the input port number in FL's MIDI Settings.",
-                **port_info,
-            }
-        if age > protocol.HEARTBEAT_STALE_SECONDS:
-            return {
-                "alive": False,
-                "reason": f"Heartbeat is {age:.1f}s old (stale > "
-                          f"{protocol.HEARTBEAT_STALE_SECONDS:.0f}s). FL may "
-                          f"be frozen or the controller stopped responding.",
-                "heartbeat_age_seconds": round(age, 2),
-                **port_info,
-            }
-        # Round-trip a ping so we also confirm the request path is healthy.
-        data = bridge.call(protocol.CMD_PING)
-        return {
-            "alive": True,
-            "heartbeat_age_seconds": round(age, 2),
-            **port_info,
-            **data,
-        }
+        if report.get("fl_version"):
+            out["fl_version"] = report["fl_version"]
+        if out["alive"]:
+            bridge = get_bridge()
+            age = bridge.heartbeat_age()
+            out["heartbeat_age_seconds"] = round(age, 2) if age is not None else None
+            out["protocol_version"] = protocol.PROTOCOL_VERSION
+        else:
+            # Kept for older prompts that read `reason`.
+            out["reason"] = report["next"]
+            out["failed_check"] = next(
+                (c for c in report["checks"] if c["ok"] is False), None)
+        return out
 
     @mcp.tool(
         annotations={
@@ -92,11 +82,26 @@ def register(mcp: FastMCP) -> None:
     def fl_set_tempo(
         bpm: Annotated[float, Field(ge=10.0, le=999.0, description="Target tempo in BPM, FL accepts 10-999.")],
     ) -> dict:
-        """Set the FL Studio project tempo. Range is 10-999 BPM (FL's own limits)."""
-        data = _safe_call(protocol.CMD_SET_TEMPO, {"bpm": float(bpm)})
+        """Set the FL Studio project tempo. Range is 10-999 BPM (FL's own limits).
+
+        Reversible like every other write: fl_rollback_last_change restores
+        the tempo that was set before.
+        """
+        try:
+            data = safety.safe_write(
+                get_bridge(), tool="set_tempo", scope="tempo",
+                command=protocol.CMD_SET_TEMPO, params={"bpm": float(bpm)},
+                build_restore=lambda before: {"command": protocol.CMD_SET_TEMPO,
+                                              "params": {"bpm": before["bpm"]}})
+        except FLNotRunning as e:
+            raise RuntimeError(str(e)) from e
+        except FLTimeout as e:
+            raise RuntimeError(f"{e}. Try fl_ping to confirm the controller is alive.") from e
+        except FLCommandFailed as e:
+            raise RuntimeError(f"FL Studio rejected the command: {e}") from e
         if data.get("dry_run"):
             return data
-        return {"bpm": data["bpm"]}
+        return {"bpm": data["after"]["bpm"], "previous_bpm": data["before"]["bpm"]}
 
     @mcp.tool(
         annotations={

@@ -1,7 +1,7 @@
 # name=FLStudioMCP
 # url=https://github.com/rosasynthesiz/flstudio-mcp
 # receiveFrom=
-# supportedDevices=
+# supportedDevices=FLStudioMCP,FLStudioMCP RX
 """FLStudioMCP controller script -- v0.2 MIDI-only transport.
 
 Lives at:
@@ -70,6 +70,10 @@ except Exception:
 
 PROTOCOL_VERSION = 2
 
+# Must equal the server package version. `fl-studio-mcp doctor` compares the
+# two and asks for `fl-studio-mcp setup` when they differ.
+CONTROLLER_VERSION = "2.0.0.dev0"
+
 SYSEX_MANUFACTURER = 0x7D
 SYSEX_MAGIC = (0x4D, 0x43, 0x50)   # ASCII "MCP"
 
@@ -89,6 +93,21 @@ HEARTBEAT_INTERVAL = 0.5  # seconds between heartbeats
 
 _last_heartbeat = 0.0
 _fl_version = "unknown"
+_project_session_marker = object()
+_project_session = "%s-%s" % (time.time(), id(_project_session_marker))
+_project_generation = 0
+_project_loading = False
+
+
+def OnProjectLoad(status):
+    global _project_generation, _project_loading
+    # Invalidate even same-name reloads and failed loads, including unsaved projects.
+    _project_generation += 1
+    _project_loading = status != 100
+
+
+def _project_token():
+    return "%s:%s" % (_project_session, _project_generation)
 
 # `device.midiOutSysex` is what we want; some old builds expose
 # `midiOutSysEx` (capital E). Resolve at OnInit.
@@ -100,7 +119,8 @@ _send_sysex_fn = None
 # ---------------------------------------------------------------------------
 
 def OnInit():
-    global _fl_version, _send_sysex_fn
+    global _fl_version, _send_sysex_fn, _project_generation
+    _project_generation += 1
     try:
         _fl_version = ui.getVersion()
     except Exception:
@@ -122,6 +142,8 @@ def OnInit():
 
 
 def OnDeInit():
+    global _project_generation
+    _project_generation += 1
     print("[FLStudioMCP] Shutting down.")
     return
 
@@ -183,6 +205,13 @@ def _handle_request_sysex(event, source):
             "code": "internal_error",
         }
 
+    # Budget the complete ASCII-escaped envelope, including exception text.
+    # Never truncate a full pattern name used by the server's undo snapshot.
+    if command in {"pattern_select", "pattern_rename", "pattern_get_length"}:
+        if not _fits(payload):
+            payload = {"v": PROTOCOL_VERSION, "ok": False,
+                       "error": "Pattern response too large; inspect state before retrying",
+                       "code": "response_too_large"}
     _send_message(DIR_RESPONSE, request_id, payload)
     return True
 
@@ -298,6 +327,13 @@ class _ClientError(Exception):
 
 
 def _dispatch(command, params):
+    expected = params.get("_project_token")
+    if expected is not None:
+        if expected != _project_token() or _project_loading:
+            raise _ClientError("Project changed or is loading; operation refused", code="project_changed")
+        pattern = params.get("_expected_pattern")
+        if pattern is not None and pattern != patterns.patternNumber():
+            raise _ClientError("Selected pattern changed; operation refused", code="pattern_changed")
     handler = _HANDLERS.get(command)
     if handler is None:
         raise _ClientError("Unknown command: %s" % command, code="unknown_command")
@@ -310,7 +346,8 @@ def _h_ping(params):
     return {
         "fl_version": _fl_version,
         "protocol_version": PROTOCOL_VERSION,
-        "build": "probe-v16",   # reload marker -- bump to verify reloads take
+        "build": CONTROLLER_VERSION,
+        "controller_version": CONTROLLER_VERSION,
         "ts": time.time(),
     }
 
@@ -461,6 +498,8 @@ def _h_get_project_state(params):
     return {
         "fl_version": _fl_version,
         "tempo_bpm": mixer.getCurrentTempo() / _tempo_scale(),
+        "project_token": _project_token(),
+        "project_loading": _project_loading,
         "playing": _is_playing(),
         "recording": _is_recording(),
         "pattern_number": pat_num,
@@ -1201,6 +1240,98 @@ def _h_pattern_list(p):
     return _paginate(patterns.patternCount(), p.get("start", 0), entry, "patterns")
 
 
+def _pattern_reply(data):
+    """Fail closed instead of truncating a name needed for lossless undo."""
+    if not _fits({"v": PROTOCOL_VERSION, "ok": True, "data": data}):
+        return {"ok": False, "code": "response_too_large",
+                "error": "Full pattern name exceeds the safe response budget"}
+    return data
+
+
+def _h_pattern_select(p):
+    """Select a pattern by index. Bounds-checked: jumpToPattern past
+    patternCount silently lands on patternMax (999), i.e. a NON-EXISTENT
+    pattern -- so an out-of-range index is rejected instead of selected."""
+    idx = int(p["index"])
+    total = patterns.patternCount()
+    prev = patterns.patternNumber()
+    if idx < 1 or idx > total:
+        return {"ok": False,
+                "error": f"rejected index {idx}: pattern range is 1..{total}"}
+    # Preflight both full names BEFORE changing the selection. Two individually
+    # safe snapshots can still exceed the budget when combined in this reply.
+    planned = _pattern_reply({"ok": True, "index": idx,
+                              "name": patterns.getPatternName(idx),
+                              "prev_index": prev, "prev_name": patterns.getPatternName(prev)})
+    if not planned["ok"]:
+        return planned
+    patterns.jumpToPattern(idx)
+    cur = patterns.patternNumber()
+    return _pattern_reply({"ok": cur == idx, "index": cur, "name": patterns.getPatternName(cur),
+                           "prev_index": prev, "prev_name": patterns.getPatternName(prev)})
+
+
+def _h_pattern_rename(p):
+    """Rename a pattern. Returns the old name so a rollback can restore it."""
+    idx = int(p["index"])
+    name = str(p["name"])
+    total = patterns.patternCount()
+    if idx < 1 or idx > total:
+        return {"ok": False,
+                "error": f"rejected index {idx}: pattern range is 1..{total}"}
+    old = patterns.getPatternName(idx)
+    snapshot = _h_pattern_get_length({"index": idx})
+    if not snapshot["ok"]:
+        return snapshot
+    proposed = dict(snapshot)
+    proposed["name"] = name
+    checked = _pattern_reply(proposed)
+    if not checked["ok"]:
+        return checked
+    planned = _pattern_reply({"ok": True, "index": idx, "old_name": old, "new_name": name})
+    if not planned["ok"]:
+        return planned
+    try:
+        patterns.setPatternName(idx, name)
+    except Exception as e:
+        return _pattern_reply({"ok": False, "error": f"setPatternName: {e}"})
+    return _pattern_reply({"ok": True, "index": idx, "old_name": old,
+                           "new_name": patterns.getPatternName(idx)})
+
+
+def _h_pattern_get_length(p):
+    """Read one pattern: length in beats (FL's native unit -- the docs say
+    getPatternLength returns BEATS, not ticks) + derived ticks/bars, name and
+    current selection -- doubles as the snapshot for scope pattern:N."""
+    idx = int(p["index"])
+    total = patterns.patternCount()
+    if idx < 1 or idx > total:
+        return {"ok": False,
+                "error": f"rejected index {idx}: pattern range is 1..{total}"}
+    beats = patterns.getPatternLength(idx)
+    try:
+        ppq = int(general.getRecPPQ())
+    except Exception:
+        ppq = 96
+    if ppq < 1:
+        ppq = 96
+    try:
+        ppb = float(general.getRecPPB())
+    except Exception:
+        ppb = 0.0
+    if not ppb or ppb <= 0:
+        ppb = 4.0 * ppq                    # assume 4/4
+    beats_per_bar = ppb / ppq
+    try:
+        selected = bool(patterns.isPatternSelected(idx))
+    except Exception:
+        selected = None
+    return _pattern_reply({"ok": True, "index": idx, "name": patterns.getPatternName(idx),
+            "length_beats": beats, "length_bars": round(beats / beats_per_bar, 3),
+            "length_ticks": int(beats * ppq), "ppq": ppq,
+            "beats_per_bar": beats_per_bar,
+            "selected": selected, "current": patterns.patternNumber()})
+
 def _h_arrange_new_pattern(p):
     """Find the next empty pattern (or count+1), select it, name it. Selecting
     it is what lets the note bridge write INTO this pattern next."""
@@ -1376,4 +1507,7 @@ _HANDLERS = {
     "pattern_list": _h_pattern_list,
     "channel_get_grid": _h_channel_get_grid,
     "channel_set_grid": _h_channel_set_grid,
+    "pattern_select": _h_pattern_select,
+    "pattern_rename": _h_pattern_rename,
+    "pattern_get_length": _h_pattern_get_length,
 }

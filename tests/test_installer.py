@@ -43,9 +43,11 @@ def test_mcp_apply_seeded():
 
 @needs_log
 def test_port_check_ran():
-    log = _log().lower()                  # Windows says MISSING, macOS says Missing
-    assert "missing ports" in log or "all required ports present" in log, \
-        "installer log has no port check result"
+    log = _log().lower()
+    # Windows installer reports the loopMIDI ports; the macOS installer (v2)
+    # runs `fl-studio-mcp setup`, whose report ends with a status line.
+    assert ("missing ports" in log or "all required ports present" in log
+            or "status: " in log), "installer log has no connection check result"
 
 
 @needs_log

@@ -67,7 +67,8 @@ def tool_test(wav):
     import json
     import types
 
-    from fl_studio_mcp import safety
+    from fastmcp import Client
+    from fl_studio_mcp import safety, connection
     from fl_studio_mcp.server import build_server
 
     grid = {(1, 3): 1}                                       # something already there
@@ -78,6 +79,10 @@ def tool_test(wav):
     sys.modules["channels"].setGridBit = (
         lambda c, i, v: grid.__setitem__((c, i), 1) if v else grid.pop((c, i), None))
     sys.modules["patterns"].patternNumber = lambda: 1
+    sys.modules["patterns"].patternCount = lambda: 1
+    sys.modules["channels"].channelCount = lambda: 3
+    sys.modules["mixer"].trackCount = lambda: 1
+    sys.modules["mixer"].getCurrentTempo = lambda: BPM * 1000
     root = Path(__file__).resolve().parents[1]
     spec = importlib.util.spec_from_file_location(
         "dev_drums", root / "fl_controller" / "FLStudioMCP" / "device_FLStudioMCP.py")
@@ -89,6 +94,7 @@ def tool_test(wav):
             return json.loads(json.dumps(dev._dispatch(command, params or {})))
 
     bridge = Bridge()
+    connection._bridge = bridge
     for name, mod in list(sys.modules.items()):
         if name.startswith("fl_studio_mcp.tools.") and hasattr(mod, "get_bridge"):
             mod.get_bridge = lambda: bridge
@@ -97,10 +103,13 @@ def tool_test(wav):
     safety._log = safety.ChangeLog()
     server = build_server()
 
+    async def invoke(name, args):
+        async with Client(server) as client:
+            result = await client.call_tool(name, args)
+            return result.data
+
     def call(name, args):
-        res = asyncio.run(server.call_tool(name, args))
-        sc = getattr(res, "structured_content", None)
-        return sc.get("result", sc) if sc and set(sc) == {"result"} else sc
+        return asyncio.run(invoke(name, args))
 
     r = call("fl_extract_drums", {"path": str(wav), "bpm": BPM,
                                   "to_channels": {"kick": 0, "snare": 1, "open hat": 2}})

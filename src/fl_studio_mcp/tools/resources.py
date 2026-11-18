@@ -84,4 +84,4 @@ def register(mcp: FastMCP) -> None:
         """Pattern list (1-based index + name), capped."""
         return _safe(lambda: _summary(
             fetch_all_pages(get_bridge(), protocol.CMD_PATTERN_LIST, "patterns"),
-            "patterns", "fl_get_project_state"))
+            "patterns", "fl_pattern_list"))

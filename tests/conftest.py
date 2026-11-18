@@ -26,7 +26,7 @@ class FakeBridge:
     """
 
     def __init__(self, replies=None):
-        self.replies = replies or {}
+        self.replies = {"get_project_state": {"project_token": "fake-project", "project_loading": False}, **(replies or {})}
         self.calls = []          # [(command, params), ...] in order
 
     def call(self, command, params=None):

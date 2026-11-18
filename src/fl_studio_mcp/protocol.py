@@ -63,6 +63,19 @@ DEFAULT_PORT_TO_FL = "FLStudioMCP RX"
 # Server opens this as INPUT. FL opens this as OUTPUT.
 DEFAULT_PORT_FROM_FL = "FLStudioMCP TX"
 
+# v2: when the server creates its own virtual ports (macOS / Linux) it uses ONE
+# name for both directions. FL Studio then treats the pair as one device: the
+# controller script (``# supportedDevices=FLStudioMCP``) is linked, the output
+# is paired to the same Port number and both are enabled without any clicks in
+# MIDI Settings. Verified live on FL Studio 26.1.5 [build 5384], macOS.
+SHARED_PORT_NAME = "FLStudioMCP"
+
+
+def port_names_overridden() -> bool:
+    """True when the user pinned port names through the environment."""
+    return bool(os.environ.get("FLSTUDIO_MCP_PORT_TO_FL")
+                or os.environ.get("FLSTUDIO_MCP_PORT_FROM_FL"))
+
 
 def port_to_fl_name() -> str:
     return os.environ.get("FLSTUDIO_MCP_PORT_TO_FL", DEFAULT_PORT_TO_FL)
@@ -120,9 +133,10 @@ CMD_PATTERN_RENAME = "pattern_rename"
 CMD_PATTERN_GET_LENGTH = "pattern_get_length"
 
 # Plugin params (Phase 1B)
+# (CMD_PLUGIN_LIST_PARAMS "plugin_list_params" was a dead declaration -- never
+# had a handler or tool; plugin_get_params fully covers the dump, removed E-2)
 CMD_PLUGIN_LIST = "plugin_list"            # list plugins on a mixer track's slots
 CMD_PLUGIN_GET_PARAMS = "plugin_get_params"  # paginated param dump for one plugin
-CMD_PLUGIN_LIST_PARAMS = "plugin_list_params"
 CMD_PLUGIN_GET_PARAM = "plugin_get_param"
 CMD_PLUGIN_SET_PARAM = "plugin_set_param"
 
