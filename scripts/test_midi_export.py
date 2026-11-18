@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test MIDI export: build a 3-track (drums/bass/lead) arrangement -> .mid,
-read it back with mido + assert it's a valid type-1 multi-track file. Leaves a
-REAL importable file at ~/.flstudio-mcp/exports/test_arrangement.mid (no FL).
+read it back with mido + assert it's a valid type-1 multi-track file. Uses a
+disposable temporary file; never writes into user export folders (no FL).
 
     python scripts/test_midi_export.py
 """
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -43,11 +44,11 @@ def main() -> int:
     tracks = [drums, bass, lead]
     total_notes = sum(len(t["notes"]) for t in tracks)
 
-    path = os.path.join(os.path.expanduser("~"), ".flstudio-mcp", "exports", "test_arrangement.mid")
-    write_midi(tracks, 120.0, path, beats_per_bar=4)
-    print("wrote:", path, "(%d bytes)\n" % os.path.getsize(path))
-
-    mf = mido.MidiFile(path)
+    with tempfile.TemporaryDirectory(prefix="flmcp-export-test-") as folder:
+        path = os.path.join(folder, "test_arrangement.mid")
+        write_midi(tracks, 120.0, path, beats_per_bar=4)
+        print("wrote temporary MIDI:", os.path.getsize(path), "bytes")
+        mf = mido.MidiFile(path)
     names = [t.name for t in mf.tracks if t.name]
     note_ons = sum(1 for tr in mf.tracks for m in tr if m.type == "note_on" and m.velocity > 0)
     note_offs = sum(1 for tr in mf.tracks for m in tr
@@ -63,7 +64,6 @@ def main() -> int:
     check("tempo set (~120 BPM)", tempos and abs(mido.tempo2bpm(tempos[0]) - 120.0) < 1.0,
           str([round(mido.tempo2bpm(t), 1) for t in tempos]))
 
-    print("\nIMPORT THIS IN FL to verify:\n  %s" % path)
     print("\n%d passed, %d failed" % (_P, _F))
     return 0 if _F == 0 else 1
 
