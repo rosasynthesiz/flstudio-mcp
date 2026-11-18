@@ -42,13 +42,16 @@ STATUS_HELP = {
     "PORTS_MISSING": "Windows: create two loopMIDI ports named 'FLStudioMCP RX' "
                      "and 'FLStudioMCP TX'. macOS/Linux: run `fl-studio-mcp doctor` "
                      "from a normal terminal.",
-    "MIDI_UNAVAILABLE": "This process cannot use MIDI. Run the command from a "
-                        "normal terminal (not a sandboxed app).",
+    "MIDI_UNAVAILABLE": "This app runs the server in a sandbox that blocks MIDI. "
+                        "Run `fl-studio-mcp-daemon` in a normal terminal and keep "
+                        "it open; the server then uses that.",
     "FL_CLOSED": "Open FL Studio and load any project.",
     "NO_HEARTBEAT": "Restart FL Studio once (needed only the first time). If it "
                     "still fails: Options > MIDI Settings, select FLStudioMCP in "
                     "Input, turn on Enable, choose Controller type FLStudioMCP, "
-                    "and give Input and Output the same Port number.",
+                    "and give Input and Output the same Port number. On the "
+                    "Microsoft Store build of Claude Desktop, also start "
+                    "`fl-studio-mcp-daemon` (scripts\\start_daemon.bat) first.",
     "PING_TIMEOUT": "FL Studio is busy (a dialog may be open). Close the dialog "
                     "and try again.",
 }
