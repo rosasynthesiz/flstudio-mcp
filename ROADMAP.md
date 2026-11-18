@@ -31,12 +31,11 @@ Tool names below are the real ones; the full list is in the README.
 
 ## Next
 
-1. **Release 2.0.0** to PyPI and the Official MCP Registry.
-2. **Fewer, clearer tools.** Group the 90 tools by what they control (about 22), so they cost fewer tokens and are easier for a model to pick.
-3. **Patcher presets as a plugin loader** (#39): the assistant writes a Patcher preset, you drag it in once, and it can then drive every exposed control.
-4. **"What changed?"** A plain-language list of this session's changes, with undo for all of them.
-5. **Larger replies in one round trip.** Replies are capped at about 600 bytes today, so long lists are paged.
-6. **Simpler Windows setup.** Looking for a way to get the macOS no-click pairing with loopMIDI.
+1. **Fewer, clearer tools.** Group the 90 tools by what they control (about 22), so they cost fewer tokens and are easier for a model to pick.
+2. **Patcher presets as a plugin loader** (#39): the assistant writes a Patcher preset, you drag it in once, and it can then drive every exposed control.
+3. **"What changed?"** A plain-language list of this session's changes, with undo for all of them.
+4. **Larger replies in one round trip.** Replies are capped at about 600 bytes today, so long lists are paged.
+5. **Simpler Windows setup.** Looking for a way to get the macOS no-click pairing with loopMIDI.
 
 ## Not possible through FL Studio's API
 
