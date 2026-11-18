@@ -7,11 +7,12 @@ from fl_studio_mcp import connection as conn
 
 
 @pytest.mark.parametrize('platform,setting,expected', [
-    ('darwin', None, False), ('linux', None, False), ('darwin', 'auto', False),
+    ('darwin', None, True), ('linux', None, True), ('darwin', 'auto', True),
     ('darwin', '1', True), ('linux', 'true', True), ('win32', '1', False),
-    ('darwin', 'off', False), ('freebsd', '1', False),
+    ('win32', None, False), ('darwin', 'off', False), ('linux', '0', False),
+    ('darwin', ' NO ', False), ('freebsd', '1', False),
     ('darwin', ' YES ', True), ('linux', 'on', True)])
-def test_virtual_ports_are_explicitly_opt_in(monkeypatch, platform, setting, expected):
+def test_virtual_ports_default_on_where_supported(monkeypatch, platform, setting, expected):
     monkeypatch.setattr(conn, 'sys', SimpleNamespace(platform=platform))
     if setting is None:
         monkeypatch.delenv('FLSTUDIO_MCP_VIRTUAL_PORTS', raising=False)

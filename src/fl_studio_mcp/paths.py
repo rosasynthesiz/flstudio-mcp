@@ -45,10 +45,27 @@ def _registry_user_data_dir() -> Path | None:
     return p if p and p.is_dir() else None
 
 
+def _macos_user_data_dir() -> Path | None:
+    """macOS keeps FL's "Shared data" path in an XML registry file."""
+    if sys.platform != "darwin":
+        return None
+    reg = Path.home() / "Library" / "Preferences" / "Image-Line" / "reg.xml"
+    try:
+        import xml.etree.ElementTree as ET
+        for node in ET.parse(reg).iter("Value"):
+            if node.get("Name") == "Shared data" and node.text:
+                p = Path(node.text.strip())
+                return p if p.is_dir() else None
+    except Exception:
+        return None
+    return None
+
+
 def image_line_dirs() -> list[Path]:
     """Candidate Image-Line user data roots, most authoritative first."""
     out: list[Path] = []
-    for p in (_registry_user_data_dir(), documents_dir() / "Image-Line",
+    for p in (_registry_user_data_dir(), _macos_user_data_dir(),
+              documents_dir() / "Image-Line",
               Path.home() / "Documents" / "Image-Line", Path.home() / "Image-Line"):
         if p is not None and p not in out:
             out.append(p)
@@ -65,3 +82,19 @@ def fl_settings_dir() -> Path:
         if settings.is_dir():
             return settings
     return documents_dir() / "Image-Line" / "FL Studio" / "Settings"
+
+
+def bundled_controller() -> Path:
+    """The controller script that ships with this server version."""
+    here = Path(__file__).resolve().parent
+    for candidate in (here / "_controller" / "device_FLStudioMCP.py",          # wheel
+                      here.parents[1] / "fl_controller" / "FLStudioMCP"
+                      / "device_FLStudioMCP.py"):                               # checkout
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError("The FL controller script is missing from this install.")
+
+
+def installed_controller() -> Path:
+    """Where FL Studio loads the controller script from."""
+    return fl_settings_dir() / "Hardware" / "FLStudioMCP" / "device_FLStudioMCP.py"

@@ -51,22 +51,11 @@ logger = logging.getLogger("fl_studio_mcp")
 SERVER_INSTRUCTIONS = """\
 FL Studio MCP server -- control FL Studio from an AI assistant.
 
-REQUIREMENTS
-  1. FL Studio 20.7 or newer must be running.
-  2. Two virtual MIDI ports must exist (one in each direction):
-       - 'FLStudioMCP RX' (server -> FL)
-       - 'FLStudioMCP TX' (FL -> server)
-     Windows: create both in loopMIDI. macOS: enable two buses in IAC Driver
-     (Audio MIDI Setup). Linux: use snd-virmidi.
-  3. The FLStudioMCP controller script must be installed under
-     Documents/Image-Line/FL Studio/Settings/Hardware/FLStudioMCP/
-  4. In FL Studio: Options > MIDI Settings,
-       - Enable 'FLStudioMCP RX' in the Input list, set Controller type to
-         FLStudioMCP, give it a Port number (any value, e.g. 42).
-       - Enable 'FLStudioMCP TX' in the Output list, set Port to the SAME
-         number. This is how FL routes the script's outgoing SysEx back to
-         the MCP server.
-  5. Call fl_ping first to verify the bridge is healthy.
+CONNECTION
+  Call fl_ping first. It returns a `status` code and a `next` step. If the
+  status is not READY, tell the user that one step; do not retry other tools.
+  One-time setup for the user is `fl-studio-mcp setup` in a terminal, then
+  opening FL Studio. `fl-studio-mcp doctor` re-checks at any time.
 
 LIMITS YOU SHOULD KNOW ABOUT (these are FL API limitations, not server bugs)
   - Cannot load new VST/AU plugin instances. You can only control plugins
@@ -136,6 +125,12 @@ def main() -> None:
     )
     if "--list-ports" in sys.argv:
         sys.exit(_print_ports())
+    if "--version" in sys.argv:
+        print(__version__)
+        sys.exit(0)
+    if len(sys.argv) > 1 and sys.argv[1] in ("setup", "doctor", "connect"):
+        from . import setup_cli
+        sys.exit(setup_cli.run(sys.argv[1:]))
 
     logger.info(
         "fl-studio-mcp %s; ports: out=%r, in=%r",

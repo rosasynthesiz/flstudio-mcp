@@ -63,6 +63,19 @@ DEFAULT_PORT_TO_FL = "FLStudioMCP RX"
 # Server opens this as INPUT. FL opens this as OUTPUT.
 DEFAULT_PORT_FROM_FL = "FLStudioMCP TX"
 
+# v2: when the server creates its own virtual ports (macOS / Linux) it uses ONE
+# name for both directions. FL Studio then treats the pair as one device: the
+# controller script (``# supportedDevices=FLStudioMCP``) is linked, the output
+# is paired to the same Port number and both are enabled without any clicks in
+# MIDI Settings. Verified live on FL Studio 26.1.5 [build 5384], macOS.
+SHARED_PORT_NAME = "FLStudioMCP"
+
+
+def port_names_overridden() -> bool:
+    """True when the user pinned port names through the environment."""
+    return bool(os.environ.get("FLSTUDIO_MCP_PORT_TO_FL")
+                or os.environ.get("FLSTUDIO_MCP_PORT_FROM_FL"))
+
 
 def port_to_fl_name() -> str:
     return os.environ.get("FLSTUDIO_MCP_PORT_TO_FL", DEFAULT_PORT_TO_FL)

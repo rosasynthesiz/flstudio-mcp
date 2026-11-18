@@ -41,6 +41,7 @@ import json
 import logging
 import os
 import socketserver
+import sys
 import threading
 
 from . import __version__
@@ -53,7 +54,7 @@ from .connection import (
     FLPortMissing,
     FLTimeout,
 )
-from .connection import DEFAULT_TCP_HOST, DEFAULT_TCP_PORT
+from .connection import DEFAULT_TCP_HOST, DEFAULT_TCP_PORT, local_tcp_host
 
 
 logger = logging.getLogger("fl_studio_mcp.daemon")
@@ -79,6 +80,8 @@ def _get_bridge() -> FLBridge:
 
 
 def _handle_request(req: dict) -> dict:
+    if not isinstance(req, dict):
+        return {"ok": False, "error": "request must be a JSON object"}
     op = req.get("op")
 
     if op == "health":
@@ -140,7 +143,15 @@ class _Handler(socketserver.StreamRequestHandler):
     def handle(self) -> None:
         logger.debug("client connected: %s", self.client_address)
         try:
-            for raw in self.rfile:  # one request per line
+            self.connection.settimeout(10)
+            while True:
+                raw = self.rfile.readline(1024 * 1024 + 1)
+                if not raw:
+                    break
+                if len(raw) > 1024 * 1024:
+                    self.wfile.write(b'{"ok":false,"error":"request too large"}\n')
+                    self.wfile.flush()
+                    break
                 line = raw.strip()
                 if not line:
                     continue
@@ -168,8 +179,29 @@ class _Handler(socketserver.StreamRequestHandler):
 
 
 class _Server(socketserver.ThreadingTCPServer):
-    allow_reuse_address = True
+    # On Windows SO_REUSEADDR would let a second owner steal a live socket.
+    allow_reuse_address = sys.platform != "win32"
     daemon_threads = True
+
+
+def serve_in_background(bridge: FLBridge, host: str | None = None,
+                        port: int | None = None) -> _Server:
+    """Share an already-open bridge on the local socket from a daemon thread.
+
+    Used by the MCP server when it owns the MIDI ports, so a second MCP server
+    (another client, another chat) joins it instead of failing. Raises
+    ``OSError`` if the socket is taken.
+    """
+    global _bridge
+    host = local_tcp_host(host or os.environ.get("FLSTUDIO_MCP_TCP_HOST", DEFAULT_TCP_HOST))
+    port = int(port or os.environ.get("FLSTUDIO_MCP_TCP_PORT", DEFAULT_TCP_PORT))
+    server = _Server((host, port), _Handler)
+    with _bridge_lock:
+        _bridge = bridge
+    threading.Thread(target=server.serve_forever, name="fl-studio-mcp-share",
+                     daemon=True).start()
+    logger.info("Sharing the MIDI bridge on %s:%d", host, port)
+    return server
 
 
 def main() -> None:
@@ -177,7 +209,8 @@ def main() -> None:
         level=os.environ.get("FLSTUDIO_MCP_LOG", "INFO").upper(),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    host = os.environ.get("FLSTUDIO_MCP_TCP_HOST", DEFAULT_TCP_HOST)
+    # Validate before opening MIDI or binding; an env override must never expose FL remotely.
+    host = local_tcp_host(os.environ.get("FLSTUDIO_MCP_TCP_HOST", DEFAULT_TCP_HOST))
     port = int(os.environ.get("FLSTUDIO_MCP_TCP_PORT", DEFAULT_TCP_PORT))
 
     # Pre-open so port problems surface in the log immediately. Non-fatal:

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fl-studio-mcp"
-version = "1.0.0"
+version = "2.0.0.dev0"
 description = "AI-powered FL Studio control via MCP - mixing, composition, plugin control, and mix diagnosis through natural language"
 readme = "README.md"
 license = { text = "MIT" }
@@ -30,11 +30,13 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Mixers",
 ]
 dependencies = [
-    "fastmcp>=2.0.0",
+    "fastmcp>=2.0.0,<5",      # tested with 4.2; a new major needs a check first
     "pydantic>=2.7.0",
     "mido>=1.3.2",
     "python-rtmidi>=1.5.8",
-    "pyautogui>=0.9.54",      # piano-roll script trigger
+    # Piano-roll script trigger. Windows only: macOS sends the key through
+    # System Events (osascript), so no GUI-automation package is installed there.
+    "pyautogui>=0.9.54; sys_platform == 'win32'",
     "pygetwindow>=0.0.9; sys_platform == 'win32'",  # Windows focus helper
 ]
 
@@ -86,6 +88,11 @@ Issues = "https://github.com/rosasynthesiz/flstudio-mcp/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fl_studio_mcp"]
+
+# Ship the FL controller script inside the wheel so `fl-studio-mcp setup`
+# works from PyPI / uvx with no git clone.
+[tool.hatch.build.targets.wheel.force-include]
+"fl_controller/FLStudioMCP/device_FLStudioMCP.py" = "fl_studio_mcp/_controller/device_FLStudioMCP.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

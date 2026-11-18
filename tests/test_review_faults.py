@@ -20,7 +20,9 @@ class FaultBridge:
         self.writes = 0
 
     def call(self, command, params):
-        index = params['param']
+        if command == "get_project_state":
+            return {"project_token": "fault-project", "project_loading": False}
+        index = params["param"]
         if command == 'plugin_get_param':
             if self.failure == 'read' and self.writes:
                 raise RuntimeError('readback unavailable')
@@ -64,6 +66,8 @@ def test_single_retry_exception_retains_recovery_record(isolated_log):
         fail_retry = True
 
         def call(self, command, params):
+            if command == "get_project_state":
+                return super().call(command, params)
             if self.fail_retry and self.writes:
                 if command == 'plugin_get_param':
                     return {'v': 0.1}  # stale read after the first write landed

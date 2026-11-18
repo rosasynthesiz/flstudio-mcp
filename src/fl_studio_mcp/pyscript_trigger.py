@@ -2,7 +2,7 @@
 
 Windows uses the existing AttachThreadInput + synthetic-Alt focus path, then
 sends Ctrl+Alt+Y. macOS activates FL Studio through AppleScript, then sends
-Cmd+Opt+Y through pyautogui. The Piano Roll must be FL's active panel for the
+Cmd+Opt+Y through System Events. The Piano Roll must be FL's active panel for the
 shortcut to fire because "Run last script again" is a piano-roll command.
 """
 
@@ -17,7 +17,7 @@ def _trigger_macos(settle=0.35):
     """Focus FL Studio on macOS and send Cmd+Opt+Y."""
     try:
         subprocess.check_call(
-            ["osascript", "-e", 'tell application "FL Studio" to activate'],
+            ["osascript", "-e", 'tell application id "com.image-line.flstudio" to activate'],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -32,11 +32,28 @@ def _trigger_macos(settle=0.35):
             "error": f"{type(e).__name__}: {e}",
         }
 
-    import pyautogui
-
-    pyautogui.FAILSAFE = False
     time.sleep(settle)
-    pyautogui.hotkey("command", "option", "y")
+    try:
+        # System Events needs the same Accessibility permission pyautogui did,
+        # without installing a GUI-automation package.
+        subprocess.check_call(
+            ["osascript", "-e",
+             'tell application "System Events" to keystroke "y" '
+             'using {command down, option down}'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        return {
+            "platform": "macos",
+            "fl_found": True,
+            "focused": focused,
+            "sent_hotkey": False,
+            "shortcut": "Cmd+Opt+Y",
+            "error": "Could not send the key. Grant Accessibility permission to the "
+                     "app running this server (System Settings > Privacy & Security "
+                     "> Accessibility). %s: %s" % (type(e).__name__, e),
+        }
     return {
         "platform": "macos",
         "fl_found": True,

@@ -15,7 +15,8 @@ class OfflineDaw:
     def call(self, command, params=None, **kwargs):
         self.commands.append((command, params))
         return {"bpm": 130.0, "playing": False, "recording": False,
-                "position_beats": 0.0, "pan": 0.0, "ok": True}
+                "position_beats": 0.0, "pan": 0.0, "ok": True,
+                "project_token": "offline:1", "project_loading": False}
 
     def apply_notes(self, notes, mode="replace", **kwargs):
         self.commands.append(("apply_notes", {"notes": notes, "mode": mode, **kwargs}))
@@ -71,8 +72,11 @@ async def test_dry_run_previews_without_any_daw_action(offline_daw, tool, argume
 async def test_live_mode_still_dispatches_transport_once(offline_daw):
     async with Client(build_server()) as client:
         result = await client.call_tool("fl_set_tempo", {"bpm": 130})
-        assert result.data == {"bpm": 130.0}
-    assert offline_daw.commands == [("set_tempo", {"bpm": 130.0})]
+        assert result.data == {"bpm": 130.0, "previous_bpm": 130.0}
+    sent = [c for c in offline_daw.commands if c[0] == "set_tempo"]
+    assert sent == [("set_tempo", {"bpm": 130.0, "_project_token": "offline:1"})]
+    last = safety.get_changelog().recent(1)[0]      # v2: tempo is undoable
+    assert last["tool"] == "set_tempo" and last["restore"]["params"] == {"bpm": 130.0}
 
 
 @pytest.mark.asyncio
