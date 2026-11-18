@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "fl-studio": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/rosasynthesiz/flstudio-mcp", "fl-studio-mcp"],
+      "env": { "FLSTUDIO_MCP_TRANSPORT": "tcp" }
+    }
+  }
+}
