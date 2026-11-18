@@ -274,6 +274,112 @@ Plain-language prompts:
 - "Export this arrangement to a MIDI file."
 - "What tempo and key is this track?" (on an audio file)
 
+## Tools
+
+72 tools, grouped by area.
+
+### Transport
+
+- `fl_ping` — Check that FL Studio is running and the controller script is loaded.
+- `fl_get_tempo` — Read the project tempo in BPM.
+- `fl_set_tempo` — Set the project tempo (10–999 BPM).
+- `fl_play` — Start playback.
+- `fl_stop` — Stop playback.
+- `fl_toggle_play` — Toggle play and stop, like the spacebar.
+- `fl_record` — Toggle record-arm.
+- `fl_get_play_state` — Report whether FL is playing or recording.
+- `fl_get_song_position` — Read the playhead position in beats.
+- `fl_set_song_position` — Move the playhead to a beat position.
+
+### Project, mixer & channel state
+
+- `fl_get_project_state` — Tempo, transport state, and pattern, channel and mixer counts.
+- `fl_get_mixer_state` — Every mixer track with name, volume, pan, mute and solo.
+- `fl_get_channel_state` — Every channel-rack channel with name, volume, pan, mute and solo.
+- `fl_set_mixer_volume` — Set a mixer track's volume (linear or dB).
+- `fl_set_mixer_pan` — Set a mixer track's pan (-1 left to +1 right).
+- `fl_set_mixer_mute` — Mute or unmute a mixer track.
+- `fl_set_mixer_solo` — Solo or unsolo a mixer track.
+- `fl_set_mixer_name` — Rename a mixer track.
+- `fl_set_channel_volume` — Set a channel's volume (linear or dB).
+- `fl_set_channel_pan` — Set a channel's pan (-1 left to +1 right).
+- `fl_set_channel_mute` — Mute or unmute a channel.
+- `fl_set_channel_solo` — Solo or unsolo a channel.
+- `fl_take_snapshot` — Read the current state of a scope for before/after comparison.
+- `fl_rollback_last_change` — Undo the most recent write from its saved snapshot.
+- `fl_set_dry_run` — Preview writes without changing the project.
+
+### Mix Doctor & gain staging
+
+- `fl_diagnose_mix` — Scan the whole mix and report problems with proposed fixes (read-only).
+- `fl_apply_mix_fix` — Apply one Mix Doctor fix with snapshot, readback and rollback.
+- `fl_mix_watch_start` — Start a full-song peak watch that keeps each track's loudest moment.
+- `fl_mix_watch_status` — Report whether a peak watch is running and for how long.
+- `fl_mix_watch_stop` — Stop the peak watch and diagnose the mix on full-song peaks.
+- `fl_gain_stage` — Propose per-track fader trims toward a healthy level with master headroom.
+- `fl_reference_match` — Compare your mix's level and tonal balance to a reference track.
+
+### Processing intents
+
+- `fl_apply_eq_intent` — Apply a musical EQ move on Fruity Parametric EQ 2.
+- `fl_apply_compression_intent` — Compress with Fruity Limiter or FabFilter Pro-C, relative to the measured level.
+- `fl_apply_reverb_intent` — Reverb moves on Fruity Reeverb 2 (decay, wet, high-cut) as one undoable change.
+- `fl_apply_delay_intent` — Delay moves on Fruity Delay (time, feedback, wet, feedback cut) as one undoable change.
+- `fl_get_track_level` — Measure a mixer track's level from its meter over a short window.
+
+### Plugin parameters
+
+- `fl_plugin_list` — List the filled effect slots on a mixer track.
+- `fl_plugin_get_params` — List every named parameter of a plugin with its value and display text.
+- `fl_plugin_set_param` — Set one plugin parameter, then verify it landed.
+- `fl_plugin_set_params` — Set several parameters of one plugin as a single rollback unit.
+
+### Presets & processing chains
+
+- `fl_list_presets` — List preset names from your FL Studio and Serum 2 preset folders.
+- `fl_suggest_preset` — Suggest presets from your own library that match a description.
+- `fl_list_chains` — List the built-in processing-chain recipes (vocal, drum bus, bass, master).
+- `fl_list_installed_plugins` — List the plugins installed in FL Studio, de-duplicated and categorized.
+- `fl_setup_chain` — Plan a processing chain over a track's existing plugins.
+
+### Routing
+
+- `fl_get_routing` — Show which tracks a mixer track sends to.
+- `fl_get_routing_all` — Show routing for every mixer track.
+- `fl_get_channel_routing` — Show which mixer track each channel is linked to.
+- `fl_detect_cleanup_candidates` — Flag empty channels and unused mixer tracks, with a reason (read-only).
+- `fl_set_route` — Turn a send between two mixer tracks on or off.
+- `fl_group_tracks` — Route a group of tracks into a bus, and the bus to the master.
+
+### Bulk mute, solo & color
+
+- `fl_solo_tracks` — Solo a group (drums, vocals, …) so only it is audible.
+- `fl_mute_tracks` — Mute a group of tracks.
+- `fl_clear_mute_solo` — Unmute and unsolo every mixer track.
+- `fl_set_track_color` — Color mixer tracks by name, group, color name or hex.
+- `fl_set_channel_color` — Color channel-rack channels.
+
+### Composition & arrangement
+
+- `fl_write_piano_roll_notes` — Write notes into the open piano roll.
+- `fl_quantize_pattern` — Quantize the notes already in the open piano roll.
+- `fl_write_raga_melody` — Write a melody in any scale into the selected channel.
+- `fl_write_raga_chords` — Write chords or a progression in any scale into the selected channel.
+- `fl_get_step_grid` — Read which step-sequencer steps are on for a channel.
+- `fl_set_step_grid` — Set exactly which step-sequencer steps are on for a channel.
+- `fl_arrange_new_pattern` — Create, select and name the next empty pattern.
+- `fl_arrange_select_channel` — Select a channel-rack channel.
+- `fl_arrange_clone_pattern` — Clone a pattern with its notes and rename the clone.
+- `fl_arrange_add_marker` — Add a named timeline marker at a bar.
+- `fl_export_midi` — Write a multi-track .mid file from an arrangement.
+
+### Audio analysis
+
+- `fl_analyze_audio` — Estimate tempo and key of an audio file.
+- `fl_extract_melody` — Transcribe a single-line melody from audio to notes.
+- `fl_extract_chords` — Transcribe chords from audio to notes.
+- `fl_extract_drums` — Detect drum hits in a loop or stem and sort them into kick, snare, clap and hi-hats.
+
 ## Architecture
 
 A thin controller script runs inside FL Studio and returns only cheap, raw data; all judgement — diagnosis, calibration, planning — happens server-side. A standalone daemon owns the MIDI port so the server works regardless of how the MCP client is launched. Note authoring uses a generated pyscript bridge: the daemon re-triggers the armed `MCP_Apply` script with the platform run-last-script shortcut after a brief window force-focus. Every project-modifying tool routes through a snapshot → write → readback → rollback safety layer backed by a persisted change log.
