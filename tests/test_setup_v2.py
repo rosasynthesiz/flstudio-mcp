@@ -325,8 +325,17 @@ def test_every_status_has_a_next_step():
 def test_client_snippets_are_valid():
     snippets = setup_cli.client_snippets()
     entry = json.loads(snippets["claude-desktop"])["mcpServers"]["fl-studio"]
-    assert entry == {"command": "uvx", "args": ["fl-studio-mcp"]}
+    assert entry["command"] == "uvx" and entry["args"][-1] == "fl-studio-mcp"
+    # a development build must be launched from git, not from the older PyPI release
+    assert ("--from" in entry["args"]) == ("dev" in setup_cli.__version__)
     assert "FLSTUDIO_MCP_TRANSPORT" not in "".join(snippets.values())   # no env needed in v2
+
+
+def test_released_version_uses_pypi(monkeypatch):
+    monkeypatch.setattr(setup_cli, "__version__", "2.0.0")
+    entry = json.loads(setup_cli.client_snippets()["cursor"])["mcpServers"]["fl-studio"]
+    assert entry == {"command": "uvx", "args": ["fl-studio-mcp"]}
+    assert setup_cli.client_snippets()["claude-code"] == "claude mcp add fl-studio -- uvx fl-studio-mcp"
 
 
 def test_connect_rejects_unknown_client(capsys):

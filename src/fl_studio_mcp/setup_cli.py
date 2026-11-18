@@ -28,6 +28,8 @@ from pathlib import Path
 
 from . import __version__, paths, protocol
 
+GIT_SOURCE = "git+https://github.com/rosasynthesiz/flstudio-mcp"
+
 # Status code -> the one thing to do next.
 STATUS_HELP = {
     "READY": "Connected. Ask Claude to do something in FL Studio.",
@@ -276,12 +278,17 @@ def _print_report(report: dict) -> None:
 
 def client_snippets() -> dict:
     """Ready-to-paste MCP client entries. We print them; we edit no files."""
-    entry = {"command": "uvx", "args": ["fl-studio-mcp"]}
+    # A released version comes from PyPI; a development build (from git) has to
+    # be launched from git too, or the client would start the older PyPI server.
+    args = ["fl-studio-mcp"]
+    if "dev" in __version__:
+        args = ["--from", GIT_SOURCE, "fl-studio-mcp"]
+    entry = {"command": "uvx", "args": args}
     return {
-        "claude-code": "claude mcp add fl-studio -- uvx fl-studio-mcp",
+        "claude-code": "claude mcp add fl-studio -- uvx " + " ".join(args),
         "claude-desktop": json.dumps({"mcpServers": {"fl-studio": entry}}, indent=2),
         "cursor": json.dumps({"mcpServers": {"fl-studio": entry}}, indent=2),
-        "codex": '[mcp_servers.fl-studio]\ncommand = "uvx"\nargs = ["fl-studio-mcp"]',
+        "codex": "[mcp_servers.fl-studio]\ncommand = \"uvx\"\nargs = %s" % json.dumps(args),
     }
 
 
