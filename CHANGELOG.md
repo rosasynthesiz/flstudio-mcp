@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **No daemon to start:** the first server owns the MIDI ports and shares them; later servers join; a joiner takes over if the owner exits. `FLSTUDIO_MCP_TRANSPORT` and the daemon still work.
 - **Project-bound undo:** an undo entry from another project or controller session is refused and kept. The log is shared safely between servers. `fl_set_tempo` is undoable.
 - **Pattern tools:** `fl_pattern_list`, `fl_pattern_select`, `fl_pattern_rename`, `fl_pattern_get_length` (#37, #38 by Evgeniy Ovchintsev), with verified writes.
+- **Playlist and plugin tools** from #12 by David Bertram: playlist tracks (list, mute, solo, rename, colour), arrangement selection and markers, `fl_capabilities`, and deeper plugin control (`fl_plugin_overview`, `fl_plugin_find_params`, `fl_plugin_calibrate_param`, `fl_plugin_set_param_value`, `fl_plugin_intent`), also for channel-rack instruments (`slot=-1`). 90 tools in total.
+- **Plugin writes land on the first send.** The controller now passes an explicit pickup mode to FL; without one FL Studio 26.1 often ignored a write however many times it was sent.
+- Undo picks the newest change of the open project; entries left by another project or FL session no longer block undo or calibration.
+- The first command after connecting waits until FL answers steadily (FL can go silent for about a second while it attaches the device).
+- `FLSTUDIO_MCP_LOG=DEBUG` logs every command sent to FL and its answer.
 - `fl_ping` returns `status` and `next`. A write FL refuses because a dialog is open reports `FL_BUSY`. The first command after connecting is no longer lost.
 - One version for server and controller, checked on connect.
 - FastMCP capped below 5; `pyautogui` no longer installed on macOS (the note-bridge key goes through System Events).
