@@ -109,7 +109,7 @@ def _virtual_ports_enabled() -> bool:
     val = os.environ.get("FLSTUDIO_MCP_VIRTUAL_PORTS", "").strip().lower()
     if val not in ("1", "true", "on", "yes"):
         return False
-    return sys.platform != "win32"
+    return sys.platform in ("darwin", "linux")
 
 
 def list_ports() -> dict:
@@ -165,6 +165,19 @@ class FLBridge:
         # already exist and virtual mode applies, create them here. (Windows'
         # MME backend can't create virtual ports -- loopMIDI is still required.)
         if (out_match is None or in_match is None) and _virtual_ports_enabled():
+            # Virtual endpoints appear in the opposite OS direction. Refuse
+            # another bridge's names as well as incomplete existing IAC pairs.
+            if (_find_port(self._port_to_fl_pattern, in_names) is not None
+                    or _find_port(self._port_from_fl_pattern, out_names) is not None):
+                raise FLPortMissing(
+                    "Bridge virtual port names already exist in the opposite direction; "
+                    "stop the owning bridge before creating another pair."
+                )
+            if out_match is not None or in_match is not None:
+                raise FLPortMissing(
+                    "Only one bridge port exists; configure both named ports or remove "
+                    "the partial pair before opting in to virtual creation."
+                )
             self._open_virtual()
             return
 
@@ -183,8 +196,12 @@ class FLBridge:
                 % (self._port_from_fl_pattern, in_names)
             )
         logger.info("Opening MIDI ports: out=%r, in=%r", out_match, in_match)
-        self._out_port = mido.open_output(out_match)
-        self._in_port = mido.open_input(in_match, callback=self._on_midi)
+        try:
+            self._out_port = mido.open_output(out_match)
+            self._in_port = mido.open_input(in_match, callback=self._on_midi)
+        except Exception:
+            self.close()
+            raise
         self._opened = True
         self._virtual = False
         atexit.register(self.close)
@@ -203,6 +220,7 @@ class FLBridge:
             self._out_port = mido.open_output(to_fl, virtual=True)
             self._in_port = mido.open_input(from_fl, virtual=True, callback=self._on_midi)
         except Exception as e:
+            self.close()
             raise FLPortMissing(
                 "Could not create virtual MIDI ports (%s). On macOS this should "
                 "work out of the box; on Windows use loopMIDI and set the port "
@@ -223,6 +241,8 @@ class FLBridge:
         self._out_port = None
         self._opened = False
         self._virtual = False
+        self._last_heartbeat = 0.0
+        self._heartbeat_payload = None
         with contextlib.suppress(Exception):  # pragma: no cover
             atexit.unregister(self.close)
 
