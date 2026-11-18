@@ -7,13 +7,14 @@ pattern has to be cleaned up by hand (rename it to a TMP_ marker).
 """
 from __future__ import annotations
 
+import json
 from typing import Annotated
 
 from fastmcp import FastMCP
 from pydantic import Field
 
 from .. import protocol, safety
-from ..connection import fetch_all_pages, get_bridge
+from ..connection import FLCommandFailed, fetch_all_pages, get_bridge
 
 
 def _restore_select(before):
@@ -52,17 +53,21 @@ def register(mcp: FastMCP) -> None:
         bridge = get_bridge()
         if limit is None:
             return fetch_all_pages(bridge, protocol.CMD_PATTERN_LIST,
-                                   "patterns", {"start": start})
+                                   "patterns", {"start": start}, max_pages=1000)
         out, cur = [], start
         total = None
         while len(out) < limit:
             page = bridge.call(protocol.CMD_PATTERN_LIST, {"start": cur})
+            if page.get("ok") is False:
+                raise FLCommandFailed(page.get("error") or "List page was rejected")
             total = page.get("total", total)
             chunk = page.get("patterns") or []
             out.extend(chunk[: limit - len(out)])
             nxt = page.get("next_start")
-            if nxt is None or int(nxt) <= cur or not chunk:
+            if nxt is None or len(out) >= limit:
                 break
+            if int(nxt) <= cur or not chunk:
+                raise FLCommandFailed("Pagination made no forward progress", code="invalid_page")
             cur = int(nxt)
         return {"total": total, "start": start, "patterns": out}
 
@@ -78,18 +83,23 @@ def register(mcp: FastMCP) -> None:
         result = safety.safe_write(
             bridge, tool="pattern_select", scope=f"pattern:{index}",
             command=protocol.CMD_PATTERN_SELECT, params={"index": index},
-            build_restore=_restore_select)
+            build_restore=_restore_select, verify_state=("current", index))
         # The controller reply carries the previous selection, but safe_write
         # exposes only before/after; surface prev_index/prev_name from the
         # snapshot (and the controller's own echo is lost by design).
         if isinstance(result, dict):
             prev = (result.get("before") or {}).get("current")
             if isinstance(prev, int):
-                meta = bridge.call(protocol.CMD_PATTERN_GET_LENGTH,
-                                   {"index": prev})
-                if meta.get("ok"):
-                    result["prev_index"] = prev
-                    result["prev_name"] = meta.get("name")
+                result["prev_index"] = prev
+                try:
+                    meta = bridge.call(protocol.CMD_PATTERN_GET_LENGTH,
+                                       {"index": prev})
+                    if meta.get("ok"):
+                        result["prev_name"] = meta.get("name")
+                except Exception:
+                    # Optional display metadata must not mask the write result
+                    # or its already-persisted recovery record.
+                    pass
             result["resolved_index"] = (result.get("after") or {}).get("current")
         return result
 
@@ -99,11 +109,19 @@ def register(mcp: FastMCP) -> None:
         name: Annotated[str, Field(description="New pattern name.")],
     ) -> dict:
         """Rename a pattern. One rollback step: restores the old name."""
+        params = {"index": index, "name": name}
+        # Reject oversized requests locally; FL may never receive a large SysEx
+        # and therefore cannot send its own bounded error. Match the controller's
+        # conservative JSON budget, counting escapes rather than characters.
+        request = protocol.make_request(protocol.CMD_PATTERN_RENAME, params)
+        if len(json.dumps(request, ensure_ascii=True, separators=(",", ":"))) > 600:
+            return {"ok": False, "code": "request_too_large",
+                    "error": "Full pattern name exceeds the safe request budget"}
         return safety.safe_write(
             get_bridge(), tool="pattern_rename", scope=f"pattern:{index}",
             command=protocol.CMD_PATTERN_RENAME,
-            params={"index": index, "name": name},
-            build_restore=_restore_rename(index))
+            params=params,
+            build_restore=_restore_rename(index), verify_state=("name", name))
 
     @mcp.tool(annotations={"title": "Get pattern length", **_RO})
     def fl_pattern_get_length(

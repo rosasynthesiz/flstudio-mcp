@@ -33,6 +33,13 @@ This is the orchestration layer. Deep content lives in `references/`.
 | List / pick / rename patterns | `fl_pattern_list` (paginated), `fl_pattern_select`, `fl_pattern_rename` — select/rename are one rollback step each |
 | How long is a pattern | `fl_pattern_get_length` — beats (FL's native unit) + derived bars/ticks via the project PPQ |
 
+Pattern writes return `verified` from an independent readback. If `ok` is false,
+inspect the error and state before continuing. Failed undo returns
+`recovery_retained: true`; the original recovery record stays available for a
+retry. Full pattern names that exceed the MIDI budget are rejected rather than
+truncated, so a list entry with `trunc: true` may not support a full-name read or
+write. Undo never restores a shortened name.
+
 ### Plugin parameter recipe
 
 Trust `verified`, not the request. Measured on FL 26 with Fruity Parametric

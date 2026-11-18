@@ -45,7 +45,7 @@ Options considered:
   ROADMAP Phase 3 and the test script output).
 - `pattern_list` names are capped at 24 chars in LIST responses (honest
   `trunc: true` flag, budget §2.2); full names are readable via
-  `fl_pattern_get_length`.
+  `fl_pattern_get_length` when the full response fits the safe MIDI budget (see follow-up).
 
 ## Live scenario (DoD)
 
@@ -84,3 +84,55 @@ were bumped 72 → 76.
 - Rename with empty/very long names and name conflicts: not exercised.
 - Late rollback of a rename over someone else's rename restores the
   snapshotted name (by design, untested live).
+
+
+## PR #38 review follow-up
+
+The original pattern implementation and its native measurements above are by
+Evgeniy Ovchintsev (commit `46ec07e7bcc3f6cdfaefb3b3ed9914260dd77b91`).
+The follow-up keeps that commit and adds these safety corrections:
+
+- Unlimited list traversal honors `start`, including an offset past the end.
+  It supports all 999 patterns even at one entry per page; stalled, rejected
+  or capped pagination reports an error instead of silently returning a partial list.
+- Select and rename compare a fresh read against the requested current index
+  or exact name. Rejected, ignored or unreadable writes cannot report success.
+  Recovery data is retained if a write may have landed.
+- Undo keeps its persisted entry until the restore succeeds; pattern undo also
+  requires an independent exact readback. Rejected restores, lost replies,
+  unreadable state and partially restored groups retain their recovery entry.
+- Pattern replies budget the complete ASCII-escaped JSON envelope. Oversized
+  full names are rejected, never silently shortened in snapshots. Select
+  preflights both names; rename preflights the old/new echo and the new full
+  snapshot before calling the setter. Oversized native exception messages
+  become bounded errors. Large rename requests are rejected locally before
+  sending MIDI. The limit depends on encoded bytes, not a fixed character count.
+- Optional previous-name metadata cannot turn a verified selection into an
+  apparent failure.
+
+This intentionally means a pattern with an oversized existing name can still
+be listed with `trunc: true`, but full reads and writes can return a size error.
+There is no chunked-name protocol in this change. No truncated name is ever
+used to build an undo action.
+
+`tests/test_pattern_safety.py` covers these behaviors through registered MCP
+tools and real SysEx encoding/decoding/controller dispatch, with fake FL APIs
+and an isolated persisted changelog. It includes Unicode names, multi-page
+lists, index validation, meter/PPQ fallbacks, failure injection and recovery
+retry after reloading the log. These are offline tests, not native FL evidence.
+
+Controller build marker: `e2-patterns-v3`. The follow-up has not been deployed
+or tested inside FL Studio; native validation in a disposable project remains
+required before merge. The earlier live results in this document apply to v2.
+
+Offline verification for the follow-up (Python 3.12.14, FastMCP 4.2.1):
+
+- CI-style suite (`tests` plus channel-visibility and installer-guard reviews):
+  180 passed, 15 skipped, with the two localhost socket tests run separately
+  outside the socket sandbox: 2 passed. No substantive test failures remain.
+- New pattern regression file: 74 passing cases, included in the suite above.
+- Protocol-sync script: 11 passed, 0 failed.
+- CI lint (`F,E9`, also including the controller), focused new-file Ruff checks,
+  and `git diff --check`: pass.
+- Skips cover native MIDI, optional audio extras and installer/platform checks.
+  Test data and the undo log were redirected into disposable directories.

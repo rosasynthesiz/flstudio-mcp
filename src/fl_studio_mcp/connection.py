@@ -475,14 +475,21 @@ def fetch_all_pages(bridge, command, list_key, params=None, *, max_pages=500):
     base = dict(params or {})
     items: list = []
     total = None
-    start = 0
+    start = int(base.get("start", 0))
     for _ in range(max_pages):
         base["start"] = start
         resp = bridge.call(command, base)
         total = resp.get("total", total)
-        items.extend(resp.get(list_key) or [])
+        if resp.get("ok") is False:
+            raise FLCommandFailed(resp.get("error") or "List page was rejected")
+        chunk = resp.get(list_key) or []
+        items.extend(chunk)
         nxt = resp.get("next_start")
-        if nxt is None or int(nxt) <= start:   # done, or no forward progress
+        if nxt is None:
             break
+        if int(nxt) <= start or not chunk:
+            raise FLCommandFailed("Pagination made no forward progress", code="invalid_page")
         start = int(nxt)
+    else:
+        raise FLCommandFailed("Pagination exceeded the page limit", code="incomplete_list")
     return {"total": total, list_key: items}

@@ -183,6 +183,13 @@ def _handle_request_sysex(event, source):
             "code": "internal_error",
         }
 
+    # Budget the complete ASCII-escaped envelope, including exception text.
+    # Never truncate a full pattern name used by the server's undo snapshot.
+    if command in {"pattern_select", "pattern_rename", "pattern_get_length"}:
+        if not _fits(payload):
+            payload = {"v": PROTOCOL_VERSION, "ok": False,
+                       "error": "Pattern response too large; inspect state before retrying",
+                       "code": "response_too_large"}
     _send_message(DIR_RESPONSE, request_id, payload)
     return True
 
@@ -310,7 +317,7 @@ def _h_ping(params):
     return {
         "fl_version": _fl_version,
         "protocol_version": PROTOCOL_VERSION,
-        "build": "e2-patterns-v2",   # reload marker -- bump to verify reloads take
+        "build": "e2-patterns-v3",   # reload marker -- bump to verify reloads take
         "ts": time.time(),
     }
 
@@ -1201,6 +1208,14 @@ def _h_pattern_list(p):
     return _paginate(patterns.patternCount(), p.get("start", 0), entry, "patterns")
 
 
+def _pattern_reply(data):
+    """Fail closed instead of truncating a name needed for lossless undo."""
+    if not _fits({"v": PROTOCOL_VERSION, "ok": True, "data": data}):
+        return {"ok": False, "code": "response_too_large",
+                "error": "Full pattern name exceeds the safe response budget"}
+    return data
+
+
 def _h_pattern_select(p):
     """Select a pattern by index. Bounds-checked: jumpToPattern past
     patternCount silently lands on patternMax (999), i.e. a NON-EXISTENT
@@ -1211,10 +1226,17 @@ def _h_pattern_select(p):
     if idx < 1 or idx > total:
         return {"ok": False,
                 "error": f"rejected index {idx}: pattern range is 1..{total}"}
+    # Preflight both full names BEFORE changing the selection. Two individually
+    # safe snapshots can still exceed the budget when combined in this reply.
+    planned = _pattern_reply({"ok": True, "index": idx,
+                              "name": patterns.getPatternName(idx),
+                              "prev_index": prev, "prev_name": patterns.getPatternName(prev)})
+    if not planned["ok"]:
+        return planned
     patterns.jumpToPattern(idx)
     cur = patterns.patternNumber()
-    return {"ok": cur == idx, "index": cur, "name": patterns.getPatternName(cur),
-            "prev_index": prev, "prev_name": patterns.getPatternName(prev)}
+    return _pattern_reply({"ok": cur == idx, "index": cur, "name": patterns.getPatternName(cur),
+                           "prev_index": prev, "prev_name": patterns.getPatternName(prev)})
 
 
 def _h_pattern_rename(p):
@@ -1226,12 +1248,23 @@ def _h_pattern_rename(p):
         return {"ok": False,
                 "error": f"rejected index {idx}: pattern range is 1..{total}"}
     old = patterns.getPatternName(idx)
+    snapshot = _h_pattern_get_length({"index": idx})
+    if not snapshot["ok"]:
+        return snapshot
+    proposed = dict(snapshot)
+    proposed["name"] = name
+    checked = _pattern_reply(proposed)
+    if not checked["ok"]:
+        return checked
+    planned = _pattern_reply({"ok": True, "index": idx, "old_name": old, "new_name": name})
+    if not planned["ok"]:
+        return planned
     try:
         patterns.setPatternName(idx, name)
     except Exception as e:
-        return {"ok": False, "error": f"setPatternName: {e}"}
-    return {"ok": True, "index": idx, "old_name": old,
-            "new_name": patterns.getPatternName(idx)}
+        return _pattern_reply({"ok": False, "error": f"setPatternName: {e}"})
+    return _pattern_reply({"ok": True, "index": idx, "old_name": old,
+                           "new_name": patterns.getPatternName(idx)})
 
 
 def _h_pattern_get_length(p):
@@ -1261,11 +1294,11 @@ def _h_pattern_get_length(p):
         selected = bool(patterns.isPatternSelected(idx))
     except Exception:
         selected = None
-    return {"ok": True, "index": idx, "name": patterns.getPatternName(idx),
+    return _pattern_reply({"ok": True, "index": idx, "name": patterns.getPatternName(idx),
             "length_beats": beats, "length_bars": round(beats / beats_per_bar, 3),
             "length_ticks": int(beats * ppq), "ppq": ppq,
             "beats_per_bar": beats_per_bar,
-            "selected": selected, "current": patterns.patternNumber()}
+            "selected": selected, "current": patterns.patternNumber()})
 
 def _h_arrange_new_pattern(p):
     """Find the next empty pattern (or count+1), select it, name it. Selecting
