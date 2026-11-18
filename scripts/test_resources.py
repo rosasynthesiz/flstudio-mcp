@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fl_studio_mcp.server import build_server             # noqa: E402
+from fastmcp import Client                               # noqa: E402
 
 URIS = ["fl://status", "fl://project", "fl://transport",
         "fl://channels", "fl://mixer", "fl://patterns"]
@@ -35,18 +36,14 @@ def _text(r):
     return str(r)
 
 
-def main() -> int:
-    m = build_server()
-    try:
-        res = asyncio.run(m._list_resources())
-        print("registered resources:", sorted(str(r.uri) for r in res))
-    except Exception as e:
-        print("(_list_resources unavailable: %s)" % e)
+async def check_resources(client) -> int:
+    res = await client.list_resources()
+    print("registered resources:", sorted(str(r.uri) for r in res))
 
     big_ok = True
     for uri in URIS:
         try:
-            txt = _text(asyncio.run(m.read_resource(uri)))
+            txt = _text(await client.read_resource(uri))
             size = len(txt)
             flag = ""
             if uri in ("fl://mixer", "fl://channels", "fl://patterns") and size > 4000:
@@ -62,5 +59,10 @@ def main() -> int:
     return 0 if big_ok else 1
 
 
+async def main():
+    async with Client(build_server()) as client:
+        return await check_resources(client)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(asyncio.run(main()))
