@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Undo picks the newest change of the open project; entries left by another project or FL session no longer block undo or calibration.
 - The first command after connecting waits until FL answers steadily (FL can go silent for about a second while it attaches the device).
 - `FLSTUDIO_MCP_LOG=DEBUG` logs every command sent to FL and its answer.
+- `FLSTUDIO_MCP_TRANSPORT=daemon`: use the daemon only, never open MIDI in the server process; `doctor` reports `BRIDGE_STOPPED` when the daemon is not running.
 - `fl_ping` returns `status` and `next`. A write FL refuses because a dialog is open reports `FL_BUSY`. The first command after connecting is no longer lost.
 - One version for server and controller, checked on connect.
 - FastMCP capped below 5; `pyautogui` no longer installed on macOS (the note-bridge key goes through System Events).

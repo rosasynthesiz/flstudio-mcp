@@ -674,13 +674,18 @@ def get_bridge() -> FLBridge | TCPBridge:
         the daemon; it must keep working when no daemon is running, because
         many published client configs still carry it;
       * ``direct``       -- always open MIDI in this process (:class:`FLBridge`)
-        and never share it.
+        and never share it;
+      * ``daemon``       -- only ever talk to the daemon and never open MIDI
+        here. For a client that cannot receive MIDI itself (the Microsoft
+        Store build of Claude Desktop), and for tests.
     """
     global _bridge
     with _bridge_lock:
         if _bridge is None:
             transport = os.environ.get("FLSTUDIO_MCP_TRANSPORT", "auto").lower()
-            if transport == "direct":
+            if transport == "daemon":
+                _bridge = TCPBridge()
+            elif transport == "direct":
                 _bridge = FLBridge()
                 _bridge.open()
             else:

@@ -240,6 +240,25 @@ def test_old_tcp_setting_still_uses_a_running_daemon(monkeypatch, clean_bridge):
     assert isinstance(conn.get_bridge(), conn.TCPBridge)
 
 
+def test_daemon_transport_never_opens_midi(monkeypatch, clean_bridge):
+    fake = _Backend()
+    _mac(monkeypatch, fake)
+    monkeypatch.setenv("FLSTUDIO_MCP_TRANSPORT", "daemon")
+    monkeypatch.setattr(conn, "_daemon_listening", lambda *a, **k: False)
+    bridge = conn.get_bridge()
+    assert isinstance(bridge, conn.TCPBridge) and not bridge.auto
+    assert conn._take_over(bridge) is None and fake.calls == []
+
+
+def test_doctor_says_bridge_stopped_for_daemon_transport(monkeypatch, fl_home, clean_bridge):
+    setup_cli.install_controller()
+    monkeypatch.setenv("FLSTUDIO_MCP_TRANSPORT", "daemon")
+    monkeypatch.setenv("FLSTUDIO_MCP_TCP_PORT", "9")          # nothing listens there
+    monkeypatch.setattr(setup_cli, "find_fl_app", lambda: "/Applications/FL Studio.app")
+    report = setup_cli.diagnose(wait=0.0)
+    assert report["status"] == "BRIDGE_STOPPED" and "fl-studio-mcp-daemon" in report["next"]
+
+
 def test_direct_never_shares_or_joins(monkeypatch, clean_bridge):
     from fl_studio_mcp import daemon
     fake = _Backend()
