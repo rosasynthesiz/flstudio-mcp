@@ -26,6 +26,7 @@ from .protocol import (
     CMD_MIXER_GET_ROUTING,
     CMD_CHANNEL_GET_GRID,
     CMD_GET_TEMPO,
+    CMD_PATTERN_GET_LENGTH,
 )
 
 
@@ -85,6 +86,21 @@ class ChangeLog:
             self._commit(list(self._dq)[:-1])
             return entry
 
+    def peek_last(self):
+        """Keep the recovery record persisted until restoration succeeds."""
+        with self._lock:
+            return self._dq[-1] if self._dq else None
+
+    def remove(self, entry):
+        """Acknowledge this exact entry, without popping a newer write."""
+        with self._lock:
+            for i, candidate in enumerate(self._dq):
+                if candidate is entry:
+                    kept = list(self._dq)
+                    del kept[i]
+                    self._commit(kept)
+                    return
+
     def recent(self, n: int = 10) -> list:
         with self._lock:
             return list(self._dq)[-n:]
@@ -122,7 +138,8 @@ def take_snapshot(bridge, scope):
     """Read current state for a scope so it can be restored or recorded.
 
     scope: "mixer_track:N" | "channel:N" | "mixer_all" | "channels_all"
-           | "plugin_param:TRACK:SLOT:PARAM" | "grid:CHANNEL:LENGTH" | "tempo"
+           | "plugin_param:TRACK:SLOT:PARAM" | "grid:CHANNEL:LENGTH"
+           | "route:SRC:DST" | "pattern:N" | "tempo"
     """
     kind, _, arg = str(scope).partition(":")
     if kind == "tempo":
@@ -143,6 +160,11 @@ def take_snapshot(bridge, scope):
         info = bridge.call(CMD_MIXER_GET_ROUTING, {"track": src})
         enabled = any(d.get("dst") == dst for d in info.get("routes_to", []))
         return {"src": src, "dst": dst, "enabled": enabled}
+    if kind == "pattern":
+        # Single-pattern read: name + length (ticks/bars) + selection state.
+        # Doubles as the rename/select rollback basis (restore = old name /
+        # previously selected index).
+        return bridge.call(CMD_PATTERN_GET_LENGTH, {"index": int(arg)})
     if kind == "mixer_all":
         from .connection import fetch_all_pages
         return fetch_all_pages(bridge, CMD_MIXER_LIST_TRACKS, "tracks")
@@ -285,12 +307,17 @@ class _ProjectBridge:
 @_serialized
 def safe_write(bridge, *, tool, scope, command, params, build_restore,
                verify=None, verify_value=None, verify_attempts=3,
-               verify_delay=0.4):
+               verify_delay=0.4, verify_state=None):
     """Snapshot -> log -> execute -> (verify+retry) -> read back. Honors dry-run.
 
     ``build_restore(before)`` returns ``{"command", "params"}`` that undoes
     this change. ``verify=(field, expected)`` re-issues the command until the
     reported state matches (used for flaky toggle writes like mute/solo).
+
+    ``verify_state=(field, expected)`` requires an exact, independent readback
+    (including strings). A mismatch or handler rejection returns ok=false;
+    an unreadable result raises while retaining the recovery record. It never
+    substitutes the setter echo or automatically repeats a pattern write.
 
     ``verify_value=(field, expected, tol)`` instead checks the FRESH re-read
     against a VALUE (plugin params): on a miss it re-writes and re-reads up to
@@ -318,7 +345,12 @@ def safe_write(bridge, *, tool, scope, command, params, build_restore,
         echo = _verify_retry(bridge, command, params, echo, verify)
         # Ordinary writes retain their legacy fallback; verified writes require
         # an independent read and cannot claim success from the setter's echo.
-        if verify_value is None:
+        if verify_state is not None:
+            after = take_snapshot(bridge, scope)
+            field, expected = verify_state
+            attempts = 1
+            verified = after.get("ok") is True and after.get(field) == expected
+        elif verify_value is None:
             after, attempts, verified = _re_read(bridge, scope, echo), 1, None
         else:
             after, echo, attempts, verified = _landed_write(
@@ -330,9 +362,16 @@ def safe_write(bridge, *, tool, scope, command, params, build_restore,
         _log.replace_last(dict(entry, echo=echo, error=str(error)))
         raise
     _log.replace_last(dict(entry, after=after, echo=echo, incomplete=False))
-    out = {"ok": True, "before": before, "after": after}
-    if verify_value is not None:
-        out["verified"] = bool(verified)
+    rejected = isinstance(echo, dict) and echo.get("ok") is False
+    read_failed = isinstance(after, dict) and after.get("ok") is False
+    ok = not rejected and not read_failed and (verify_state is None or verified)
+    out = {"ok": bool(ok), "before": before, "after": after}
+    if not ok:
+        out["error"] = ((echo.get("error") if rejected else None)
+                        or (after.get("error") if read_failed else None)
+                        or "Write did not reach the requested state; recovery record retained")
+    if verify_value is not None or verify_state is not None:
+        out["verified"] = bool(verified) and not rejected and not read_failed
         out["attempts"] = attempts
     return out
 
@@ -441,6 +480,8 @@ def _restore_expectation(restore, before):
         "channel_set_grid": ("steps",),
         "mixer_set_route": ("enabled",),
         "set_tempo": ("bpm",),
+        "pattern_rename": ("name",),
+        "pattern_select": ("current",),
     }
     for target in ("mixer", "channel"):
         for command, field in (("volume", "vol_norm"), ("pan", "pan"),
@@ -494,10 +535,10 @@ def rollback_last_change(bridge):
             for scope, expected in final_checks.items():
                 if not _snapshot_matches(take_snapshot(bridge, scope), expected):
                     raise RuntimeError("Final restoration readback did not match; undo retained")
-        _log.replace_last(None)  # only forget after every independent read succeeds
+        _log.remove(entry)  # forget this exact entry, only after every read succeeds
         return {"ok": True, "rolled_back": entry.get("tool"),
                 "scope": entry.get("scope"),
                 "restored": restored if entry.get("group") else restored[0]}
     except Exception as error:
-        return {"ok": False, "error": str(error), "undo_retained": True,
+        return {"ok": False, "error": str(error), "undo_retained": True, "recovery_retained": True,
                 "tool": entry.get("tool"), "scope": entry.get("scope")}

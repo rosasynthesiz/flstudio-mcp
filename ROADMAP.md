@@ -58,15 +58,17 @@ gain, not 1.0. The tools accept dB and convert.
 
 ## Phase 3 — Patterns + playlist (~6 tools)
 
-- `fl_pattern_list` — Names, lengths, colors.
-- `fl_pattern_select`, `_rename`.
-- `fl_pattern_get_length` (in steps and beats).
+- [x] `fl_pattern_list` — Names, paginated (600-byte pages, `fetch_all_pages`).
+- [x] `fl_pattern_select`, `_rename` — via `safe_write` (scope `pattern:N`), one rollback step each.
+- [x] `fl_pattern_get_length` — beats (FL's native unit) + derived bars/ticks via RecPPQ/RecPPB.
 - `fl_playlist_get_tracks` — Playlist track names and visibility.
 - `fl_playlist_get_markers` — Time-line markers (used to insert section markers).
 
 API limits worth surfacing in tool docs:
 - New patterns cannot be created from scratch; clone an existing pattern
   instead (`fl_arrange_clone_pattern`).
+- Patterns cannot be deleted via the API (a test pattern has to be renamed
+  to a TMP_ marker and removed by hand in FL).
 
 ## Phase 4 — Piano Roll pyscript (~6 tools)
 
@@ -95,9 +97,9 @@ bridge force-focuses FL first.
 
 ## Phase 5 — Plugin params (~5 tools)
 
-- `fl_plugin_list_params` — Parameter index, name, current value, value range.
-- `fl_plugin_get_param`, `_set_param`.
-- `fl_plugin_get_preset_name`, `_select_preset_index`.
+- [x] `fl_plugin_get_params` — paginated dump: index, name, normalised value (covers the old `fl_plugin_list_params` name; the dead declaration was removed in E-2, see `docs/E2_REPORT.md`).
+- [x] `fl_plugin_set_param` — single write, verified (E-1); `fl_plugin_set_params` — batch, one undo step (E-1).
+- `fl_plugin_get_preset_name`, `_select_preset_index` — not yet exposed as tools (`fl_list_presets`/`fl_suggest_preset` read the on-disk library instead).
 
 This is intentionally scoped tight. Per-VST parameter naming is a mess across
 plugins; we expose the raw FL view and let the LLM map names.
