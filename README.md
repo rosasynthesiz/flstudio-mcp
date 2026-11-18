@@ -187,7 +187,9 @@ The standalone daemon (`fl-studio-mcp-daemon`, Windows: `scripts\start_daemon.ba
 is still there for one case: an MCP client that cannot receive MIDI itself,
 such as the Microsoft Store build of Claude Desktop. Start the daemon first and
 the server joins it. An older config with `FLSTUDIO_MCP_TRANSPORT=tcp` keeps
-working, with or without the daemon; the setting is no longer needed.
+working, with or without the daemon; the setting is no longer needed. Set
+`FLSTUDIO_MCP_TRANSPORT=daemon` to make a server use the daemon only and never
+open MIDI itself.
 
 **Note writing is armed once per session.** Open the piano roll and choose
 **Tools > Scripting > MCP > MCP Apply** once. On macOS the note bridge then

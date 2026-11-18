@@ -58,7 +58,7 @@ def main() -> int:
     async def warm():
         for _ in range(20):
             try:
-                if (unwrap(await m.call_tool("fl_ping", {})) or {}).get("ok"):
+                if (unwrap(await m.call_tool("fl_ping", {})) or {}).get("alive"):
                     return True
             except Exception:
                 pass

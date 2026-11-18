@@ -45,6 +45,9 @@ STATUS_HELP = {
     "MIDI_UNAVAILABLE": "This app runs the server in a sandbox that blocks MIDI. "
                         "Run `fl-studio-mcp-daemon` in a normal terminal and keep "
                         "it open; the server then uses that.",
+    "BRIDGE_STOPPED": "Start the bridge: run `fl-studio-mcp-daemon` in a normal "
+                      "terminal and keep it open (FLSTUDIO_MCP_TRANSPORT=daemon is set, "
+                      "so this server never opens MIDI itself).",
     "FL_CLOSED": "Open FL Studio and load any project.",
     "NO_HEARTBEAT": "Restart FL Studio once (needed only the first time). If it "
                     "still fails: Options > MIDI Settings, select FLStudioMCP in "
@@ -203,6 +206,12 @@ def diagnose(wait: float = 6.0) -> dict:
         add("MIDI bridge", False, "%s: %s" % (type(e).__name__, e))
         return done("MIDI_UNAVAILABLE")
     owner = type(bridge).__name__ == "FLBridge"
+    from .connection import TCPBridge, _daemon_listening
+    if isinstance(bridge, TCPBridge) and not bridge.auto:
+        # FLSTUDIO_MCP_TRANSPORT=daemon: no fallback to opening MIDI here.
+        if not _daemon_listening(bridge.host, bridge.port):
+            add("MIDI bridge", False, "no daemon on %s:%d" % (bridge.host, bridge.port))
+            return done("BRIDGE_STOPPED")
     add("MIDI bridge", True, "this process owns the MIDI ports" if owner
         else "joined the running bridge")
 

@@ -31,12 +31,10 @@ def check(label, cond, detail=""):
 def main() -> int:
     cmd = sys.argv[1:] or [sys.executable, "-c", "from fl_studio_mcp.server import main; main()"]
     print("server:", " ".join(cmd))
-    # No daemon and no FL here. Keep the check about the stdio protocol, not about
-    # this machine's MIDI system: the old "tcp" setting now falls back to opening
-    # MIDI when no daemon runs, so turn port creation off (it then reports
-    # PORTS_MISSING straight away instead of creating real ports on a CI runner).
-    env = dict(os.environ, FLSTUDIO_MCP_TRANSPORT="tcp", FLSTUDIO_MCP_TCP_PORT="9798",
-               FLSTUDIO_MCP_VIRTUAL_PORTS="0",
+    # No daemon and no FL here. This check is about the stdio protocol, not about
+    # this machine's MIDI system (which can hang on a CI runner), so use the
+    # transport that never opens MIDI: fl_ping then answers BRIDGE_STOPPED.
+    env = dict(os.environ, FLSTUDIO_MCP_TRANSPORT="daemon", FLSTUDIO_MCP_TCP_PORT="9798",
                PYTHONPATH=str(ROOT / "src") + os.pathsep + os.environ.get("PYTHONPATH", ""))
     if len(sys.argv) > 1:
         env.pop("PYTHONPATH", None)  # do not accidentally substitute checkout source
