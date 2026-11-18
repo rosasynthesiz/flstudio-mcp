@@ -1,6 +1,6 @@
-# flstudio-mcp
+# FL Studio MCP — control FL Studio with Claude, Cursor and other AI assistants
 
-**Control FL Studio with Claude: AI mixing, composition, and mix diagnosis through natural language.**
+**The MCP server for FL Studio (Fruity Loops): AI mixing, mix diagnosis, plugin control, piano roll and drum patterns, in plain language.**
 
 [![PyPI](https://img.shields.io/pypi/v/fl-studio-mcp)](https://pypi.org/project/fl-studio-mcp/)
 ![status](https://img.shields.io/badge/status-beta-yellow)
@@ -15,7 +15,12 @@
 
 ## Overview
 
-flstudio-mcp is a Model Context Protocol (MCP) server that lets Claude (Claude Code or Claude Desktop) drive FL Studio 2025 directly — the mixer, plugins, piano roll, routing, and project — from plain-language requests. Ask for a mix diagnosis, a vocal chain, a chord progression in a particular scale, or a full arrangement, and Claude carries it out through FL's scripting API and a set of calibrated, safety-checked tools.
+`flstudio-mcp` is a Model Context Protocol (MCP) server that connects FL Studio to AI assistants: Claude Code, Claude Desktop, Cursor, Codex, or any other MCP client. Ask for a mix diagnosis, a vocal chain, a chord progression in a particular scale, or a full arrangement, and the assistant carries it out inside your open FL Studio project through FL's scripting API and a set of calibrated, safety-checked tools.
+
+- **76 tools** for the mixer, plugins, piano roll, step sequencer, patterns, routing and transport
+- **One-command setup on macOS**, with no MIDI configuration
+- **Every change can be undone**, and an undo never touches a different project
+- **Windows and macOS**, FL Studio 2025 and 2026
 
 It is genre- and producer-agnostic: nothing about it assumes a particular style of music.
 
@@ -172,8 +177,7 @@ Windows cannot create MIDI ports from a program, so loopMIDI is still needed.
    - Output list: select `FLStudioMCP TX` and give it the **same** Port number.
 4. **Check:** `.venv\Scripts\fl-studio-mcp.exe doctor` should print `Status: READY`.
 5. **Add the server to your client:** `.venv\Scripts\fl-studio-mcp.exe connect`
-   prints the entry; on Windows use the full `.venv\Scripts\fl-studio-mcp.exe`
-   path as the command.
+   prints the entry, with the full path already filled in.
 
 ### Both platforms
 
@@ -239,7 +243,7 @@ Plain-language prompts:
 
 ## Tools
 
-72 tools, grouped by area.
+76 tools, grouped by area.
 
 ### Transport
 
@@ -336,6 +340,13 @@ Plain-language prompts:
 - `fl_arrange_add_marker` — Add a named timeline marker at a bar.
 - `fl_export_midi` — Write a multi-track .mid file from an arrangement.
 
+### Patterns
+
+- `fl_pattern_list` — List the project's patterns with their names.
+- `fl_pattern_select` — Switch the working pattern; one undo step.
+- `fl_pattern_rename` — Rename a pattern; one undo step.
+- `fl_pattern_get_length` — Read a pattern's length in beats, bars and ticks.
+
 ### Audio analysis
 
 - `fl_analyze_audio` — Estimate tempo and key of an audio file.
@@ -345,9 +356,32 @@ Plain-language prompts:
 
 ## Architecture
 
-A thin controller script runs inside FL Studio and returns only cheap, raw data; all judgement — diagnosis, calibration, planning — happens server-side. A standalone daemon owns the MIDI port so the server works regardless of how the MCP client is launched. Note authoring uses a generated pyscript bridge: the daemon re-triggers the armed `MCP_Apply` script with the platform run-last-script shortcut after a brief window force-focus. Every project-modifying tool routes through a snapshot → write → readback → rollback safety layer backed by a persisted change log.
+A thin controller script runs inside FL Studio and returns only cheap, raw data; all judgement — diagnosis, calibration, planning — happens server-side. The two talk over MIDI SysEx, the only channel FL's script sandbox allows. The first MCP server to start owns the MIDI ports and shares them on a local socket, so several clients can use one FL Studio at once. Note authoring uses a generated pyscript bridge: the server re-triggers the armed `MCP_Apply` script with the platform run-last-script shortcut after a brief window focus. Every project-modifying tool routes through a snapshot → write → readback → rollback safety layer backed by a change log that is tied to the open project.
 
 Design notes and findings are in [`docs/`](docs/).
+
+## FAQ
+
+**Can Claude control FL Studio?**
+Yes. With this MCP server Claude reads and changes the open project: mixer levels, plugin parameters, piano-roll notes, step-sequencer drums, patterns, routing, tempo and transport.
+
+**Which AI assistants does it work with?**
+Any MCP client. `fl-studio-mcp connect` prints the ready-made entry for Claude Code, Claude Desktop, Cursor and Codex.
+
+**Which FL Studio versions are supported?**
+FL Studio 2025 and 2026. It is tested on 26.1 (Producer Edition), on macOS and Windows 11.
+
+**Does it work on a Mac?**
+Yes, and setup is one command: the server creates its own MIDI ports and FL Studio links them by itself. Windows needs the free loopMIDI tool.
+
+**Can it load plugins, load samples or render audio?**
+No. FL Studio's scripting API does not allow that. The assistant suggests plugins and presets from the ones you own, you load them, and it then configures them.
+
+**Is it safe to use on a real project?**
+Each change is logged with the value it replaced and can be rolled back with `fl_rollback_last_change`. Undo entries are tied to the project they were made in, so an old entry is never applied to another project. A dry-run mode shows what would change without changing it.
+
+**Is it free?**
+Yes. MIT licence, open source.
 
 ## License
 
@@ -355,6 +389,6 @@ MIT — see [LICENSE](LICENSE).
 
 ## Status & contributing
 
-Beta — the public 1.0 release. Windows and macOS are supported; Linux contributions are welcome. Issues and pull requests: [github.com/rosasynthesiz/flstudio-mcp](https://github.com/rosasynthesiz/flstudio-mcp).
+Beta. `main` is version 2 (in development); PyPI still carries 1.0.0 until 2.0.0 is released. Tested live on FL Studio 26.1 on macOS and Windows 11. Linux is untested; contributions are welcome. Issues and pull requests: [github.com/rosasynthesiz/flstudio-mcp](https://github.com/rosasynthesiz/flstudio-mcp).
 
 <!-- mcp-name: io.github.rosasynthesiz/flstudio-mcp -->

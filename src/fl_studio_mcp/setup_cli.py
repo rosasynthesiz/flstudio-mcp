@@ -276,19 +276,37 @@ def _print_report(report: dict) -> None:
 # connect
 # ---------------------------------------------------------------------------
 
+def launch_command() -> tuple[str, list[str]]:
+    """How an MCP client should start this server.
+
+    * Installed in a lasting environment (the installers' ``.venv``, pip):
+      the full path of this ``fl-studio-mcp`` executable.
+    * Run through ``uvx`` (a throwaway cache environment): ``uvx`` again --
+      from PyPI for a release, from git for a development build, so the
+      client does not start the older PyPI server.
+    """
+    name = "fl-studio-mcp.exe" if sys.platform == "win32" else "fl-studio-mcp"
+    exe = Path(sys.executable).parent / name
+    parts = [x.lower() for x in exe.parts]
+    throwaway = "uv" in parts and any(x.startswith("archive-v") for x in parts)
+    if exe.is_file() and not throwaway:
+        return str(exe), []
+    if "dev" in __version__:
+        return "uvx", ["--from", GIT_SOURCE, "fl-studio-mcp"]
+    return "uvx", ["fl-studio-mcp"]
+
+
 def client_snippets() -> dict:
     """Ready-to-paste MCP client entries. We print them; we edit no files."""
-    # A released version comes from PyPI; a development build (from git) has to
-    # be launched from git too, or the client would start the older PyPI server.
-    args = ["fl-studio-mcp"]
-    if "dev" in __version__:
-        args = ["--from", GIT_SOURCE, "fl-studio-mcp"]
-    entry = {"command": "uvx", "args": args}
+    command, args = launch_command()
+    entry = {"command": command, "args": args}
+    quoted = '"%s"' % command if " " in command else command
     return {
-        "claude-code": "claude mcp add fl-studio -- uvx " + " ".join(args),
+        "claude-code": " ".join(["claude mcp add fl-studio --", quoted] + args),
         "claude-desktop": json.dumps({"mcpServers": {"fl-studio": entry}}, indent=2),
         "cursor": json.dumps({"mcpServers": {"fl-studio": entry}}, indent=2),
-        "codex": "[mcp_servers.fl-studio]\ncommand = \"uvx\"\nargs = %s" % json.dumps(args),
+        "codex": "[mcp_servers.fl-studio]\ncommand = %s\nargs = %s"
+                 % (json.dumps(command), json.dumps(args)),
     }
 
 

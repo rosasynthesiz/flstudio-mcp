@@ -28,19 +28,18 @@ A PR that tries to "fix" one of these by working around the sandbox will likely 
 You'll need the same environment as a user, plus an editable install:
 
 - Windows 10/11 or macOS, FL Studio 2025+, Python 3.12
-- loopMIDI on Windows or IAC Driver on macOS, with two ports named exactly
-  FLStudioMCP RX and FLStudioMCP TX
+- Windows only: loopMIDI with two ports named exactly FLStudioMCP RX and
+  FLStudioMCP TX (macOS needs no MIDI setup)
 - Claude Code or Claude Desktop (or any MCP client) for end-to-end testing
 
 Install steps: clone the repo, cd into it, run `scripts\install_windows.bat` on
-Windows or `./scripts/install_macos.sh` on macOS, and answer yes to "Install
-audio to MIDI?" if you'll touch the audio code. On Windows this installs into
-`.venv`. Wire the virtual MIDI ports in FL (Options > MIDI Settings), confirm
-`[FLStudioMCP] Ready` in FL's Script output, start the bridge with
-`scripts\start_daemon.bat` (Windows) or `fl-studio-mcp-daemon` (macOS), then
-verify the link by asking Claude to call `fl_ping`.
+Windows or `./scripts/install_macos.sh` on macOS. Both install into a `.venv`
+inside the repo. Set `FLMCP_EXTRAS=all` first if you'll touch the audio code.
+On Windows, wire the two ports in FL once (Options > MIDI Settings). Then run
+`fl-studio-mcp doctor` from the `.venv`: it should print `Status: READY` with
+FL Studio open and a project loaded. `pytest tests` runs without FL Studio.
 
-On Windows, quit Claude and stop the daemon before re-running the installer:
+On Windows, quit Claude (and the daemon, if you run one) before re-running the installer:
 running processes lock the files in `.venv`.
 
 ## Project layout
