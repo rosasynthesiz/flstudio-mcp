@@ -8,6 +8,11 @@ from fl_studio_mcp.music import calibration as cal
 from fl_studio_mcp.music.value_parse import parse_value_string
 
 
+@pytest.fixture(autouse=True)
+def isolated_recovery(changelog):
+    return changelog
+
+
 class Bridge:
     def __init__(self, *, snapshot=.25, refuse=None, stale=0, read_failure=False):
         self.value, self.snapshot = .25, snapshot
@@ -16,6 +21,8 @@ class Bridge:
         self.writes, self.reads, self.pending = [], 0, None
 
     def call(self, command, params):
+        if command == 'get_project_state':
+            return {'project_token': 'calibration-test', 'project_loading': False}
         if command == protocol.CMD_PLUGIN_GET_PARAM:
             self.reads += 1
             if self.reads == 1:
@@ -106,15 +113,19 @@ def test_mixed_units_refused_after_original_restored():
 
 
 def test_failed_restoration_never_writes_cache(monkeypatch, tmp_path):
-    monkeypatch.setattr(cal, 'CACHE_DIR', tmp_path)
+    cache = tmp_path / 'cache'
+    cache.mkdir()
+    monkeypatch.setattr(cal, 'CACHE_DIR', cache)
     bridge = Bridge(refuse=.25)
     with pytest.raises(RuntimeError, match='restor'):
         cal.calibrate_param(bridge, 0, 0, 0, steps=3)
-    assert list(tmp_path.iterdir()) == []
+    assert list(cache.iterdir()) == []
 
 
 def test_cache_hit_performs_no_writes(monkeypatch, tmp_path):
-    monkeypatch.setattr(cal, 'CACHE_DIR', tmp_path)
+    cache = tmp_path / 'cache'
+    cache.mkdir()
+    monkeypatch.setattr(cal, 'CACHE_DIR', cache)
     bridge = Bridge()
     first = cal.calibrate_param(bridge, 0, 0, 0, steps=3)
     assert bridge.value == .25 and not first['cached']
@@ -125,7 +136,9 @@ def test_cache_hit_performs_no_writes(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize('points', [[(0, 0), (1, math.nan)], [(0, 5), (1, 5)]])
 def test_invalid_cached_curve_is_recalibrated(monkeypatch, tmp_path, points):
-    monkeypatch.setattr(cal, 'CACHE_DIR', tmp_path)
+    cache = tmp_path / 'cache'
+    cache.mkdir()
+    monkeypatch.setattr(cal, 'CACHE_DIR', cache)
     sig = cal.signature('', 0, None)
     cal.save_cache(sig, {f'{sig}:0:0': {'unit': '%', 'curve': {
         'points': points, 'monotonic': True}}})

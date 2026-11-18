@@ -67,6 +67,8 @@ async def test_unit_targeted_tools_verify_and_retain_original(monkeypatch, tmp_p
     class Bridge:
         value = .2
         def call(self, command, params):
+            if command == 'get_project_state':
+                return {'project_token': 'unit-test', 'project_loading': False}
             if command == 'plugin_get_params':
                 return {'plugin': 'Offline', 'total': 1, 'params': [
                     {'i': 0, 'name': 'Cutoff', 'v': self.value, 's': f'{100*self.value} Hz'}]}

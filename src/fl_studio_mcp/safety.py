@@ -9,6 +9,7 @@ returns before+after so the caller (and a human) can see exactly what changed.
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 from functools import wraps
@@ -309,6 +310,63 @@ class _ProjectBridge:
         if self.pattern is not None:
             params["_expected_pattern"] = self.pattern
         return self.bridge.call(command, params)
+
+
+def guard_project(bridge):
+    """Keep discovery, calibration and final writes on one controller session."""
+    return _ProjectBridge(bridge)
+
+
+@_serialized
+def temporary_plugin_write(bridge, address, operation):
+    """Run a temporary parameter operation with durable, project-bound recovery.
+
+    The transaction lock covers snapshot, sweep and restoration. Recovery is
+    persisted before dispatch and removed only after independent readback.
+    A project switch refuses restoration instead of targeting the new project.
+    """
+    if is_dry_run():
+        raise ValueError("Temporary parameter writes are disabled during dry-run")
+    if any(entry.get("incomplete") for entry in _log.recent(_MAX)):
+        raise RuntimeError("Resolve incomplete recovery before starting calibration")
+    bridge = _ProjectBridge(bridge)
+    address = {key: address[key] for key in ("track", "slot", "param")}
+    scope = "plugin_param:{track}:{slot}:{param}".format(**address)
+    before = take_snapshot(bridge, scope)
+    value = before.get("v")
+    if (not isinstance(value, (int, float)) or isinstance(value, bool)
+            or not math.isfinite(value) or not 0 <= value <= 1):
+        raise ValueError("Calibration requires a finite original parameter value in 0..1")
+    restore = {"command": "plugin_set_param", "params": dict(address, value=value)}
+    entry = {"tool": "plugin_calibrate_param", "scope": scope, "before": before,
+             "restore": restore, "project_token": bridge.token, "pattern": None,
+             "incomplete": True, "ts": time.time()}
+    _log.append(entry)
+    try:
+        return operation(bridge)
+    finally:
+        try:
+            result = bridge.call(restore["command"], restore["params"])
+            if isinstance(result, dict) and result.get("ok") is False:
+                raise RuntimeError("Controller refused calibration restoration")
+            for attempt in range(4):
+                after = take_snapshot(bridge, scope)
+                actual = after.get("v")
+                if (isinstance(actual, (int, float)) and not isinstance(actual, bool)
+                        and math.isfinite(actual) and 0 <= actual <= 1
+                        and abs(actual - value) <= 1e-4):
+                    break
+                if attempt < 3:
+                    time.sleep(.06)
+            else:
+                raise RuntimeError("Calibration restoration readback did not match")
+        except Exception as error:
+            _log.replace_last(dict(entry, error=str(error)))
+            raise RuntimeError(
+                "Calibration restoration failed; recovery retained for original project: %s"
+                % error
+            ) from error
+        _log.replace_last(None)
 
 
 @_serialized

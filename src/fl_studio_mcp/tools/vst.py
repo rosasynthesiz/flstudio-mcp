@@ -81,7 +81,7 @@ def register(mcp: FastMCP) -> None:
             params={'track': track, 'slot': slot, 'param': param, 'steps': steps})
         if preview is not None:
             return preview
-        bridge = get_bridge()
+        bridge = safety.guard_project(get_bridge())
         idx, name = resolve_param_index(bridge, track, slot, param)
         plugin, total, first = _first_page(bridge, track, slot)
         res = cal.calibrate_param(bridge, track, slot, idx, plugin_name=plugin,
@@ -110,7 +110,7 @@ def register(mcp: FastMCP) -> None:
             params={'track': track, 'slot': slot, 'param': param, 'target': target})
         if preview is not None:
             return preview
-        bridge = get_bridge()
+        bridge = safety.guard_project(get_bridge())
         idx, name = resolve_param_index(bridge, track, slot, param)
         plugin, total, first = _first_page(bridge, track, slot)
         res = cal.calibrate_param(bridge, track, slot, idx, plugin_name=plugin,
@@ -166,7 +166,7 @@ def register(mcp: FastMCP) -> None:
         if not spec:
             return {"ok": False, "error": "unknown intent %r" % intent,
                     "valid_intents": vin.list_intents()}
-        bridge = get_bridge()
+        bridge = safety.guard_project(get_bridge())
         plugin, total, first = _first_page(bridge, track, slot)
         dump = fetch_all_pages(bridge, protocol.CMD_PLUGIN_GET_PARAMS, "params",
                                {"track": track, "slot": slot})

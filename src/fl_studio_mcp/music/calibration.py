@@ -150,20 +150,16 @@ def sweep_param(bridge, track, slot, index, steps=DEFAULT_STEPS):
     if safety.is_dry_run():
         raise ValueError("Calibration sweeps are not executed while dry-run is enabled")
     steps = max(2, int(steps))
-    orig = bridge.call(protocol.CMD_PLUGIN_GET_PARAM,
-                       {"track": track, "slot": slot, "param": index})
-    orig_v = orig.get("v")
-    if not _valid_norm(orig_v):
-        raise ValueError('Calibration requires a finite original parameter value in 0..1')
     address = {"track": track, "slot": slot, "param": index}
     table, raw, units = [], [], {}
-    try:
+
+    def sweep(guarded):
         for k in range(steps):
             norm = round(k / (steps - 1), 6)
             # Read the display string on a FRESH call: FL commits many plugin
             # writes on a LATER script-tick, so the SET response's own "s" can be
             # the stale pre-write value. A separate GET reads the settled value.
-            got = _set_verified(bridge, address, norm)
+            got = _set_verified(guarded, address, norm)
             s = got.get("s")
             parsed = parse_value_string(s)
             val, unit = to_canonical(parsed["value"], parsed["unit"]) \
@@ -172,12 +168,8 @@ def sweep_param(bridge, track, slot, index, steps=DEFAULT_STEPS):
                 units[unit] = units.get(unit, 0) + 1
             table.append((norm, val))
             raw.append((norm, parsed["raw"]))
-    finally:
-        try:
-            _set_verified(bridge, address, orig_v)
-        except Exception as error:
-            raise RuntimeError('Calibration restoration failed for %r; restore original value %r. '
-                               'No calibration result is safe to use.' % (address, orig_v)) from error
+
+    safety.temporary_plugin_write(bridge, address, sweep)
     if len(units) > 1:
         raise ValueError('Calibration display units changed during the sweep')
     unit = max(units, key=units.get) if units else None
