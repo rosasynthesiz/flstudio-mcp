@@ -10,6 +10,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A newer push to the same pull request replaces the run in progress, so runs
+# do not pile up and compete for the few macOS runners. Runs on main are kept.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -30,15 +36,23 @@ jobs:
     runs-on: ${{ matrix.os }}
     # 3.14 is newer than the supported range; show what breaks without failing CI.
     continue-on-error: ${{ matrix.experimental }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
-        python: ["3.10", "3.11", "3.12", "3.13"]
-        experimental: [false]
         include:
+          # Windows covers every Python version (the MIDI library is the
+          # version-sensitive part, and it is Windows where it breaks).
+          - { os: windows-latest, python: "3.10", experimental: false }
+          - { os: windows-latest, python: "3.11", experimental: false }
+          - { os: windows-latest, python: "3.12", experimental: false }
+          - { os: windows-latest, python: "3.13", experimental: false }
           - { os: windows-latest, python: "3.14", experimental: true }
-          - { os: macos-latest, python: "3.14", experimental: true }
+          # macOS: oldest and newest supported Python only. GitHub's macOS
+          # arm64 runners are scarce: with nine macOS jobs per run, jobs were
+          # cancelled after 15-30 minutes with "not acquired by Runner".
+          - { os: macos-latest, python: "3.10", experimental: false }
+          - { os: macos-latest, python: "3.13", experimental: false }
           # Linux isn't supported yet; this shows what already works there.
           - { os: ubuntu-latest, python: "3.12", experimental: true }
     steps:
@@ -67,6 +81,7 @@ jobs:
   installer-windows:
     # The installer picks its own Python (3.12, 3.11, 3.10 via the py launcher).
     runs-on: windows-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -97,10 +112,12 @@ jobs:
   installer-macos:
     name: installer-macos (py${{ matrix.python }})
     runs-on: macos-latest
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.10", "3.11", "3.12", "3.13"]
+        # Oldest and newest supported Python (macOS runners are scarce).
+        python: ["3.10", "3.13"]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
