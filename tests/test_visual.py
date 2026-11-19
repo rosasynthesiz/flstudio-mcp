@@ -22,13 +22,16 @@ def shots(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "platform", "darwin")
     calls = []
 
-    def capture(out, region):
-        calls.append((out, region))
+    def capture(out, region, window_id=None):
+        calls.append((out, region, window_id))
         out.write_bytes(PNG_1PX)
 
     monkeypatch.setattr(visual, "_capture_screencapture", capture)
     monkeypatch.setattr(visual, "_capture_pyautogui", capture)
-    return {"dir": tmp_path, "calls": calls}
+    window = {"id": 57922, "x": 12, "y": 34, "w": 800, "h": 600}
+    monkeypatch.setattr(visual, "_find_fl_window", lambda: window)
+    return {"dir": tmp_path, "calls": calls, "window": window,
+            "window_rect": [12, 34, 800, 600]}
 
 
 async def _call(arguments):
@@ -51,8 +54,38 @@ async def test_region_and_named_path(shots):
     result = await _call({"path": "crop.png", "region": [10, 20, 300, 200]})
     assert result["ok"] is True, result
     assert result["path"] == str(shots["dir"] / "crop.png")
+    assert result["target"] == "region"
     assert result["region"] == [10, 20, 300, 200]
     assert shots["calls"][0][1] == [10, 20, 300, 200]
+
+
+@pytest.mark.asyncio
+async def test_default_captures_the_fl_window_not_the_screen(shots):
+    result = await _call({})
+    assert result["ok"] is True, result
+    assert result["target"] == "window"
+    assert result["region"] == shots["window_rect"]
+    assert shots["calls"][0][1] == shots["window_rect"]
+    assert shots["calls"][0][2] == 57922
+
+
+@pytest.mark.asyncio
+async def test_whole_screen_is_an_explicit_opt_in(shots):
+    result = await _call({"whole_screen": True})
+    assert result["ok"] is True, result
+    assert result["target"] == "screen"
+    assert result["region"] is None
+    assert shots["calls"][0][1:] == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_missing_fl_window_asks_for_whole_screen_or_region(shots, monkeypatch):
+    monkeypatch.setattr(visual, "_find_fl_window", lambda: None)
+    result = await _call({})
+    assert result["ok"] is False
+    assert "whole_screen=true" in result["error"]
+    assert not shots["calls"]
+    assert list(shots["dir"].glob("*.png")) == []
 
 
 @pytest.mark.asyncio
@@ -95,7 +128,7 @@ async def test_only_png_extension(shots):
 
 @pytest.mark.asyncio
 async def test_capture_failure_is_soft_with_a_hint(shots, monkeypatch):
-    def boom(out, region):
+    def boom(out, region, window_id=None):
         raise RuntimeError("no permission")
 
     monkeypatch.setattr(visual, "_capture_screencapture", boom)
@@ -107,13 +140,49 @@ async def test_capture_failure_is_soft_with_a_hint(shots, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_window_capture_never_falls_back_to_a_screen_rect(shots, monkeypatch):
+    """If -l fails, a rect capture could catch whatever covers that area."""
+    seen = []
+
+    def fail(out, region, window_id=None):
+        seen.append(window_id)
+        raise RuntimeError("window capture failed")
+
+    def pyautogui_should_not_run(out, region):
+        raise AssertionError("pyautogui rect fallback must not run for windows")
+
+    monkeypatch.setattr(visual, "_capture_screencapture", fail)
+    monkeypatch.setattr(visual, "_capture_pyautogui", pyautogui_should_not_run)
+    result = await _call({})
+    assert result["ok"] is False
+    assert seen == [57922]
+    assert list(shots["dir"].glob("*.png")) == []
+
+
+@pytest.mark.asyncio
+async def test_mac_whole_screen_still_has_a_pyautogui_fallback(shots, monkeypatch):
+    def fail(out, region, window_id=None):
+        raise RuntimeError("screencapture broke")
+
+    def ok(out, region):
+        out.write_bytes(PNG_1PX)
+
+    monkeypatch.setattr(visual, "_capture_screencapture", fail)
+    monkeypatch.setattr(visual, "_capture_pyautogui", ok)
+    result = await _call({"whole_screen": True})
+    assert result["ok"] is True, result
+    assert result["target"] == "screen"
+
+
+@pytest.mark.asyncio
 async def test_macos_falls_back_to_pyautogui(shots, monkeypatch):
-    def broken(out, region):
+    def broken(out, region, window_id=None):
         raise RuntimeError("screencapture missing")
 
     monkeypatch.setattr(visual, "_capture_screencapture", broken)
-    result = await _call({})
+    result = await _call({"whole_screen": True})
     assert result["ok"] is True, result
+    assert result["target"] == "screen"
 
 
 @pytest.mark.asyncio

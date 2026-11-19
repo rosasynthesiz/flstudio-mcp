@@ -374,7 +374,7 @@ All plugin tools also reach channel-rack instruments: pass `slot=-1` and the cha
 
 ### Debugging
 
-- `fl_screenshot` — Capture the screen (or a region) to a PNG so the assistant can see FL; macOS and Windows, never writes outside its own shots folder.
+- `fl_screenshot` — Capture FL Studio's **window** (not the whole display) to a PNG so the assistant can see the plugin window, hint bar or focus; `whole_screen=true` and `region=[x, y, w, h]` are explicit opt-ins. macOS and Windows, never writes outside its own shots folder.
 
 ### Audio analysis
 
