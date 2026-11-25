@@ -217,6 +217,15 @@ the server are the same version (`doctor` reports a mismatch). See
 [bridge correctness regressions](docs/bridge-correctness-regressions.md) for
 numeric JSON compatibility, dry-run behavior, and localized parameter names.
 
+## Install as a Claude plugin
+
+This repository is also a Claude Code plugin (`.claude-plugin/plugin.json`). Installing it adds the `flstudio` MCP server with all 90 tools, plus the `flstudio-production` skill that teaches Claude how to use them.
+
+- **What runs:** Claude Code starts `uv run --frozen --directory <plugin folder> fl-studio-mcp`. That runs this repository's own source with the dependency versions pinned in `uv.lock`, so the server and the FL Studio controller script always come from the same commit. `uv` downloads those pinned Python packages from PyPI the first time it runs.
+- **What it needs:** [uv](https://docs.astral.sh/uv/) installed, and FL Studio 2025 or newer. Do the one-time setup described in [Setup](#setup) first (macOS: `fl-studio-mcp setup`; Windows: loopMIDI ports and the MIDI Settings step). Without it, `fl_ping` tells Claude which step is missing, and `fl-studio-mcp doctor` checks each stage.
+- **What it connects to:** only your own computer. The server talks to FL Studio through two virtual MIDI ports and a local socket that lets several clients share them. It makes no calls to the internet while it runs and sends no data anywhere. The only programs it starts are `osascript` on macOS, to bring FL Studio to the front and send the piano-roll shortcut, and the Windows equivalent through `pyautogui`.
+- **What it changes:** the project open in FL Studio, and only when you ask. Each change is logged and can be rolled back with `fl_rollback_last_change`. On macOS, note writing needs Accessibility permission for the app that runs the server.
+
 ## Troubleshooting
 
 | Symptom | Fix |
