@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
-import tomllib
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,8 +27,11 @@ def test_setup_cli_not_vendored():
 
 
 def test_plugin_version_matches_main_package():
-    main = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
-    plugin = tomllib.loads((ROOT / "claude-plugin" / "pyproject.toml").read_text())["project"]["version"]
+    def version(path):  # tomllib is 3.11+; CI still runs 3.10
+        return re.search(r'^version\s*=\s*"([^"]+)"', path.read_text(), re.M).group(1)
+
+    main = version(ROOT / "pyproject.toml")
+    plugin = version(ROOT / "claude-plugin" / "pyproject.toml")
     assert main == plugin
 
 
