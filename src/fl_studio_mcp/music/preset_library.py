@@ -45,9 +45,9 @@ def _fl_studio_dirs():
 
 
 def find_fl_presets():
-    env = os.environ.get("FLSTUDIO_MCP_PRESETS")
-    if env and os.path.isdir(env):
-        return env
+    override = os.environ.get("FLSTUDIO_MCP_PRESETS")
+    if override and os.path.isdir(override):
+        return override
     for fl in _fl_studio_dirs():
         p = fl / "Presets"
         if p.is_dir():
@@ -56,9 +56,9 @@ def find_fl_presets():
 
 
 def find_serum_presets():
-    env = os.environ.get("FLSTUDIO_MCP_SERUM_PRESETS")
-    if env and os.path.isdir(env):
-        return env
+    override = os.environ.get("FLSTUDIO_MCP_SERUM_PRESETS")
+    if override and os.path.isdir(override):
+        return override
     xfer = documents_dir() / "Xfer"
     for name in ("Serum 2 Presets", "Serum2 Presets", "Serum Presets"):
         p = xfer / name
