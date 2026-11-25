@@ -2,7 +2,7 @@
 
 **The MCP server for FL Studio (Fruity Loops): AI mixing, mix diagnosis, plugin control, piano roll and drum patterns, in plain language.**
 
-**Website:** [rosasynthesiz.com/products/fl-studio-mcp](https://rosasynthesiz.com/products/fl-studio-mcp): what it does, all 90 tools and setup.
+**Website:** [rosasynthesiz.com/products/fl-studio-mcp](https://rosasynthesiz.com/products/fl-studio-mcp): what it does, all 91 tools and setup.
 
 [![PyPI](https://img.shields.io/pypi/v/fl-studio-mcp)](https://pypi.org/project/fl-studio-mcp/)
 ![status](https://img.shields.io/badge/status-beta-yellow)
@@ -226,7 +226,13 @@ This repository is also a Claude Code plugin marketplace. In Claude Code run:
 /plugin install rosa-fl-studio@flstudio-mcp
 ```
 
-The plugin lives in the `claude-plugin/` folder. It adds the `flstudio` MCP server with all 90 tools and a skill that teaches Claude how to use them.
+Or in one line from your terminal:
+
+```bash
+claude plugin install rosa-fl-studio --marketplace rosasynthesiz/flstudio-mcp
+```
+
+The plugin lives in the `claude-plugin/` folder. It adds the `flstudio` MCP server with all 91 tools and a skill that teaches Claude how to use them.
 
 - **What runs:** Claude Code starts `uv run` on `claude-plugin/server.py`, a bundled copy of this server, with the dependency versions pinned in `claude-plugin/uv.lock`. `uv` downloads those pinned packages from PyPI the first time it runs, as prebuilt wheels only.
 - **What it needs:** [uv](https://docs.astral.sh/uv/) installed, Python 3.11 or 3.12 already installed (the plugin does not download Python), and FL Studio 2025 or newer. Do the one-time setup described in [Setup](#setup) first (macOS: `fl-studio-mcp setup`; Windows: loopMIDI ports and the MIDI Settings step). Without it, `fl_ping` tells Claude which step is missing.

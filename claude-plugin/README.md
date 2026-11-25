@@ -1,6 +1,6 @@
 # FL Studio MCP (Claude plugin)
 
-Control FL Studio from Claude. The plugin starts a local MCP server with 90 tools: diagnose a mix, adjust mixer levels and plugin parameters, write drum patterns and piano roll notes, set tempo and arrange patterns. Every change is logged and can be rolled back. It runs on your own computer and talks to FL Studio over virtual MIDI; it makes no calls to the internet.
+Control FL Studio from Claude. The plugin starts a local MCP server with 91 tools: diagnose a mix, adjust mixer levels and plugin parameters, write drum patterns and piano roll notes, set tempo and arrange patterns. Every change is logged and can be rolled back. It runs on your own computer and talks to FL Studio over virtual MIDI; it makes no calls to the internet.
 
 ## Requirements
 
@@ -15,7 +15,13 @@ In Claude Code:
 
 ```
 /plugin marketplace add rosasynthesiz/flstudio-mcp
-/plugin install rosa-fl-studio --marketplace rosasynthesiz/flstudio-mcp
+/plugin install rosa-fl-studio@flstudio-mcp
+```
+
+Or in one line from your terminal:
+
+```
+claude plugin install rosa-fl-studio --marketplace rosasynthesiz/flstudio-mcp
 ```
 
 ## Use

@@ -171,33 +171,27 @@ def _mac_fl_window() -> dict | None:
 
 
 def _win_fl_window() -> dict | None:
-    """FL Studio's top-level window {"id", x, y, w, h} in pixels, or None."""
+    """FL Studio's main window {"id", x, y, w, h} in pixels, or None.
+
+    Found by FL's own window class (the same lookup pyscript_trigger uses),
+    not by title, so a browser tab or folder named "FL Studio" is never
+    captured by mistake.
+    """
     try:
         import ctypes
         from ctypes import wintypes
         user32 = ctypes.windll.user32
-        found: list[dict] = []
-
-        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-        def visit(hwnd, _lparam):
-            if not user32.IsWindowVisible(hwnd):
-                return True
-            length = user32.GetWindowTextLengthW(hwnd)
-            if length <= 0:
-                return True
-            title = ctypes.create_unicode_buffer(length + 1)
-            user32.GetWindowTextW(hwnd, title, length + 1)
-            if "fl studio" in title.value.lower():
-                rect = wintypes.RECT()
-                if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
-                    found.append({"id": int(hwnd), "x": rect.left,
-                                  "y": rect.top,
-                                  "w": rect.right - rect.left,
-                                  "h": rect.bottom - rect.top})
-            return True
-
-        user32.EnumWindows(visit, 0)
-        return next((w for w in found if w["w"] > 0 and w["h"] > 0), None)
+        hwnd = user32.FindWindowW("TFruityLoopsMainForm", None)
+        if not hwnd or not user32.IsWindowVisible(hwnd):
+            return None
+        rect = wintypes.RECT()
+        if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+            return None
+        width, height = rect.right - rect.left, rect.bottom - rect.top
+        if width <= 0 or height <= 0:
+            return None
+        return {"id": int(hwnd), "x": rect.left, "y": rect.top,
+                "w": width, "h": height}
     except Exception:  # noqa: BLE001 -- window lookup is best-effort
         return None
 
@@ -298,7 +292,7 @@ def register(mcp: FastMCP) -> None:
                 window = _find_fl_window()
                 if window is None:
                     return {"ok": False,
-                            "error": "FL Studio's window was not found; pass "
+                            "error": "FL Studio's window was not found; set "
                                      "whole_screen=true to capture the display, "
                                      "or region=[x, y, w, h] for a crop.",
                             "hint": "Is FL Studio open? On an empty project it "
