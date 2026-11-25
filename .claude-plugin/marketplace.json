@@ -7,7 +7,7 @@
   "description": "Claude plugins by Rosa Synthesiz for music production.",
   "plugins": [
     {
-      "name": "fl-studio-mcp",
+      "name": "rosa-fl-studio",
       "source": "./claude-plugin",
       "description": "Control FL Studio from Claude: diagnose a mix, adjust plugin parameters, write piano roll notes, drum patterns and arrangements, with every change logged and reversible. Runs locally and talks to FL Studio over virtual MIDI.",
       "version": "2.0.0.dev0",

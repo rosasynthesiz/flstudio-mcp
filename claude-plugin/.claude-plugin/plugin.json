@@ -1,6 +1,6 @@
 {
-  "name": "fl-studio-mcp",
-  "displayName": "FL Studio MCP",
+  "name": "rosa-fl-studio",
+  "displayName": "FL Studio MCP by Rosa Synthesiz",
   "version": "2.0.0.dev0",
   "description": "Control FL Studio from Claude: diagnose a mix, adjust plugin parameters, write piano roll notes, drum patterns and arrangements, with every change logged and reversible. Runs locally and talks to FL Studio over virtual MIDI.",
   "author": {

@@ -15,7 +15,7 @@ In Claude Code:
 
 ```
 /plugin marketplace add rosasynthesiz/flstudio-mcp
-/plugin install fl-studio-mcp --marketplace rosasynthesiz/flstudio-mcp
+/plugin install rosa-fl-studio --marketplace rosasynthesiz/flstudio-mcp
 ```
 
 ## Use

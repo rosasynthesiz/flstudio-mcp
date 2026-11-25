@@ -223,7 +223,7 @@ This repository is also a Claude Code plugin marketplace. In Claude Code run:
 
 ```
 /plugin marketplace add rosasynthesiz/flstudio-mcp
-/plugin install fl-studio-mcp@flstudio-mcp
+/plugin install rosa-fl-studio@flstudio-mcp
 ```
 
 The plugin lives in the `claude-plugin/` folder. It adds the `flstudio` MCP server with all 90 tools and a skill that teaches Claude how to use them.
