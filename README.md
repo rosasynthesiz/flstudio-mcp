@@ -2,6 +2,8 @@
 
 **The MCP server for FL Studio (Fruity Loops): AI mixing, mix diagnosis, plugin control, piano roll and drum patterns, in plain language.**
 
+**Website:** [rosasynthesiz.com/products/fl-studio-mcp](https://rosasynthesiz.com/products/fl-studio-mcp): what it does, all 90 tools and setup.
+
 [![PyPI](https://img.shields.io/pypi/v/fl-studio-mcp)](https://pypi.org/project/fl-studio-mcp/)
 ![status](https://img.shields.io/badge/status-beta-yellow)
 ![license](https://img.shields.io/badge/license-MIT-green)

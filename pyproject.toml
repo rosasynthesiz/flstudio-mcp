@@ -82,7 +82,7 @@ fl-studio-mcp = "fl_studio_mcp.server:main"
 fl-studio-mcp-daemon = "fl_studio_mcp.daemon:main"
 
 [project.urls]
-Homepage = "https://github.com/rosasynthesiz/flstudio-mcp"
+Homepage = "https://rosasynthesiz.com/products/fl-studio-mcp"
 Repository = "https://github.com/rosasynthesiz/flstudio-mcp"
 Issues = "https://github.com/rosasynthesiz/flstudio-mcp/issues"
 
