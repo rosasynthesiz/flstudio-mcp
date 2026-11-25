@@ -38,7 +38,7 @@ _ROLE_KW = {
 def find_plugin_db():
     """Locate FL's 'Installed' plugin-db folder: env override, else discover under
     the user's Documents (handles versioned 'FL Studio NN' folders)."""
-    env = os.environ.get(_ENV)
+    env = os.environ.get("FLSTUDIO_MCP_PLUGIN_DB")
     if env and os.path.isdir(env):
         return env
     for r in image_line_dirs():

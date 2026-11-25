@@ -45,7 +45,7 @@ def _fl_studio_dirs():
 
 
 def find_fl_presets():
-    env = os.environ.get(_ENV_FL)
+    env = os.environ.get("FLSTUDIO_MCP_PRESETS")
     if env and os.path.isdir(env):
         return env
     for fl in _fl_studio_dirs():
@@ -56,7 +56,7 @@ def find_fl_presets():
 
 
 def find_serum_presets():
-    env = os.environ.get(_ENV_SERUM)
+    env = os.environ.get("FLSTUDIO_MCP_SERUM_PRESETS")
     if env and os.path.isdir(env):
         return env
     xfer = documents_dir() / "Xfer"
