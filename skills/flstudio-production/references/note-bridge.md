@@ -69,7 +69,7 @@ osascript \
   -e 'tell application "System Events" to key code 16 using {command down, option down}'
 ```
 
-`repo: src/fl_studio_mcp/pyscript_trigger.py::_trigger_macos` still uses
+`src/fl_studio_mcp/pyscript_trigger.py::_trigger_macos` still uses
 `keystroke "y"` — if the automatic trigger never lands, this is why. The Windows
 path already avoids the problem by sending `VK_Y` directly.
 
@@ -104,7 +104,9 @@ yourself instead of passing a huge JSON array through a tool call:
 
 ```bash
 python3 - <<'EOF'
-TPL = '''import flpianoroll as flp
+TPL = '''# Script.Name = "MCP Apply"
+# Script.Category = "MCP"
+import flpianoroll as flp
 MODE = 'replace'
 NOTES = %r
 
@@ -130,7 +132,7 @@ _run()
 notes = [(60, 0.0, 0.25, 0.78), (67, 1.0, 0.25, 0.78)]
 open('/tmp/batch.pyscript', 'w').write(TPL % (notes,))
 EOF
-cp /tmp/batch.pyscript "~/Documents/Image-Line/FL Studio/Settings/Piano roll scripts/MCP_Apply.pyscript"
+cp /tmp/batch.pyscript "$HOME/Documents/Image-Line/FL Studio/Settings/Piano roll scripts/MCP_Apply.pyscript"
 # then the osascript trigger above
 ```
 
