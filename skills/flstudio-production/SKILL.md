@@ -32,6 +32,7 @@ This is the orchestration layer for the fl-studio MCP server.
 | Change several knobs of one plugin | `fl_plugin_set_params` — one paced burst, ONE undo step; prefer it over repeating the single tool |
 | List / pick / rename patterns | `fl_pattern_list` (paginated), `fl_pattern_select`, `fl_pattern_rename` — select/rename are one rollback step each |
 | How long is a pattern | `fl_pattern_get_length` — beats (FL's native unit) + derived bars/ticks via the project PPQ |
+| See FL on screen / debug visually | `fl_screenshot` — captures FL's window only; PNG path to Read back (see «Debugging with screenshots») |
 
 Pattern writes return `verified` from an independent readback. If `ok` is false,
 inspect the error and state before continuing. Failed undo returns
@@ -51,6 +52,27 @@ parameters (band widths) ignore writes entirely. An open plugin window
 normalised 0..1 domain shown by `fl_plugin_get_params` — read the display
 string (`3.6dB`, `500Hz`) to know what a value means, and prefer
 `fl_plugin_set_params` for 2+ knobs (one undo step).
+
+### Debugging with screenshots
+
+`fl_screenshot()` captures **FL Studio's window only** — on macOS via
+`screencapture -l <CGWindowID>` (CoreGraphics through ctypes; it is FL's own
+content even if the window is covered or on another Space), on Windows the
+FL window rect through pyautogui. Ask for `whole_screen=true` if you really
+need the entire display; never assume the screen is captured, because the
+assistant would then also receive unrelated windows. It is for **agent
+debugging** — checking a plugin window, the hint bar, or whether FL is
+focused — not part of the music workflow. It returns
+`{ok, target, path, width, height}` with `target` = window/screen/region and
+a PNG path (default `~/.flstudio-mcp/shots/<timestamp>.png`, auto-cleaned
+after 7 days); Read that path to see the image. `region=[x, y, w, h]`
+crops in LOGICAL points
+(the coordinates pyautogui clicks in), never PNG pixels: on retina the PNG
+is 2x the logical screen (measured E-0 Q5: 1710x1107 logical → 3420x2214
+px), so `logical = px / (png_width / logical_width)` — measure that ratio
+per display, don't hardcode 2.0. No Screen Recording permission? The tool
+returns `ok: false` with a hint toward System Settings → Privacy & Security
+→ Screen Recording.
 
 ## When something fails
 

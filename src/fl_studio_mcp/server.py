@@ -49,6 +49,7 @@ from .tools import resources as resource_defs
 from .tools import routing as routing_tools
 from .tools import steps as steps_tools
 from .tools import transport as transport_tools
+from .tools import visual as visual_tools
 
 
 from .tools import capabilities as capabilities_tools
@@ -111,6 +112,7 @@ def build_server() -> FastMCP:
     loader_tools.register(mcp)
     playlist_tools.register(mcp)
     vst_tools.register(mcp)
+    visual_tools.register(mcp)      # E-3: fl_screenshot (agent debugging)
     return mcp
 
 
