@@ -32,7 +32,9 @@ _WARNING = (
 def register(mcp: FastMCP) -> None:
     @mcp.tool(annotations={
         "title": "FL Undo (one step, NOT rollback-covered)",
-        "readOnlyHint": False, "destructiveHint": False,
+        "readOnlyHint": False,
+        # Destructive: an undo step can also revert the user's own unsaved edit.
+        "destructiveHint": True,
         "idempotentHint": False, "openWorldHint": True,
     })
     def fl_undo() -> dict:
