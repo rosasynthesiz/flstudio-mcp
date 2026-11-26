@@ -11,7 +11,7 @@
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-blue)
 ![FL Studio](https://img.shields.io/badge/FL%20Studio-2025%2B-orange)
 
-![Claude diagnosing and fixing a mix in FL Studio](docs/demo.gif)
+![Claude diagnosing and fixing a mix in FL Studio](https://raw.githubusercontent.com/rosasynthesiz/flstudio-mcp/main/docs/demo.gif)
 
 *Claude diagnosing and fixing a mix in FL Studio through natural language.*
 
@@ -31,7 +31,7 @@ It is genre- and producer-agnostic: nothing about it assumes a particular style 
 **macOS** — one command, no MIDI setup:
 
 ```bash
-uvx --from git+https://github.com/rosasynthesiz/flstudio-mcp fl-studio-mcp setup
+uvx fl-studio-mcp setup
 ```
 
 It installs the FL controller script, then waits. Open FL Studio and load any
@@ -42,7 +42,7 @@ MIDI ports and FL links them by itself.
 Then add the server to your AI client:
 
 ```bash
-uvx --from git+https://github.com/rosasynthesiz/flstudio-mcp fl-studio-mcp connect
+uvx fl-studio-mcp connect
 ```
 
 **Windows** — two loopMIDI ports and one step in FL (details in [Setup](#setup)):
@@ -61,8 +61,9 @@ Then ask Claude in plain language:
 If something does not connect, run `fl-studio-mcp doctor`. It checks each
 stage and prints one status and the one next step.
 
-The PyPI package (`fl-studio-mcp` 1.0.0) is the older v1 and does not have
-these commands yet; use the commands above until 2.0.0 is released.
+`uvx` comes with [uv](https://docs.astral.sh/uv/). Without it: `pip install fl-studio-mcp`,
+then `fl-studio-mcp setup`. To run the newest code from GitHub instead of the
+release: `uvx --from git+https://github.com/rosasynthesiz/flstudio-mcp fl-studio-mcp setup`.
 
 ## Capabilities
 
@@ -128,7 +129,7 @@ These are properties of FL Studio's scripting API, stated plainly:
 
 1. **Run setup:**
    ```bash
-   uvx --from git+https://github.com/rosasynthesiz/flstudio-mcp fl-studio-mcp setup
+   uvx fl-studio-mcp setup
    ```
    It copies the controller script into FL Studio's user-data folder (a
    different existing copy is kept next to it as a `.bak-<date>` file), then
@@ -214,7 +215,7 @@ was made in. An entry from another project is refused, never applied.
 
 After updating, run `setup` again and restart FL Studio so the controller and
 the server are the same version (`doctor` reports a mismatch). See
-[bridge correctness regressions](docs/bridge-correctness-regressions.md) for
+[bridge correctness regressions](https://github.com/rosasynthesiz/flstudio-mcp/blob/main/docs/bridge-correctness-regressions.md) for
 numeric JSON compatibility, dry-run behavior, and localized parameter names.
 
 ## Install as a Claude plugin
@@ -419,7 +420,7 @@ All plugin tools also reach channel-rack instruments: pass `slot=-1` and the cha
 
 A thin controller script runs inside FL Studio and returns only cheap, raw data; all judgement — diagnosis, calibration, planning — happens server-side. The two talk over MIDI SysEx, the only channel FL's script sandbox allows. The first MCP server to start owns the MIDI ports and shares them on a local socket, so several clients can use one FL Studio at once. Note authoring uses a generated pyscript bridge: the server re-triggers the armed `MCP_Apply` script with the platform run-last-script shortcut after a brief window focus. Every project-modifying tool routes through a snapshot → write → readback → rollback safety layer backed by a change log that is tied to the open project.
 
-Design notes and findings are in [`docs/`](docs/).
+Design notes and findings are in [`docs/`](https://github.com/rosasynthesiz/flstudio-mcp/tree/main/docs).
 
 ## FAQ
 
@@ -446,10 +447,10 @@ Yes. MIT licence, open source.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](https://github.com/rosasynthesiz/flstudio-mcp/blob/main/LICENSE).
 
 ## Status & contributing
 
-Beta. `main` is version 2 (in development); PyPI still carries 1.0.0 until 2.0.0 is released. Tested live on FL Studio 26.1 on macOS and Windows 11. Linux is untested; contributions are welcome. Issues and pull requests: [github.com/rosasynthesiz/flstudio-mcp](https://github.com/rosasynthesiz/flstudio-mcp).
+Beta. Version 2.0.0. Tested live on FL Studio 26.1 on macOS and Windows 11. Linux is untested; contributions are welcome. Issues and pull requests: [github.com/rosasynthesiz/flstudio-mcp](https://github.com/rosasynthesiz/flstudio-mcp).
 
 <!-- mcp-name: io.github.rosasynthesiz/flstudio-mcp -->

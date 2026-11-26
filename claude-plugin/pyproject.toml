@@ -1,6 +1,6 @@
 [project]
 name = "fl-studio-mcp-claude-plugin"
-version = "2.0.0.dev0"
+version = "2.0.0"
 description = "Runtime environment for the FL Studio MCP Claude plugin"
 requires-python = ">=3.11,<3.13"
 dependencies = [

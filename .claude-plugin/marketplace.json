@@ -10,7 +10,7 @@
       "name": "rosa-fl-studio",
       "source": "./claude-plugin",
       "description": "Control FL Studio from Claude: diagnose a mix, adjust plugin parameters, write piano roll notes, drum patterns and arrangements, with every change logged and reversible. Runs locally and talks to FL Studio over virtual MIDI.",
-      "version": "2.0.0.dev0",
+      "version": "2.0.0",
       "homepage": "https://rosasynthesiz.com/products/fl-studio-mcp",
       "license": "MIT",
       "keywords": ["fl-studio", "daw", "music-production", "mixing", "midi", "mcp"]

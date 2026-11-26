@@ -309,7 +309,7 @@ server = [
 
 [[package]]
 name = "fl-studio-mcp-claude-plugin"
-version = "2.0.0.dev0"
+version = "2.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "cryptography" },

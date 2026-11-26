@@ -72,7 +72,7 @@ PROTOCOL_VERSION = 2
 
 # Must equal the server package version. `fl-studio-mcp doctor` compares the
 # two and asks for `fl-studio-mcp setup` when they differ.
-CONTROLLER_VERSION = "2.0.0.dev0"
+CONTROLLER_VERSION = "2.0.0"
 
 SYSEX_MANUFACTURER = 0x7D
 SYSEX_MAGIC = (0x4D, 0x43, 0x50)   # ASCII "MCP"

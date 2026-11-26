@@ -37,6 +37,17 @@ def test_controller_declares_supported_devices():
     assert protocol.DEFAULT_PORT_TO_FL in names       # auto-link for loopMIDI / IAC
 
 
+def test_every_file_names_the_same_version():
+    version = _pyproject_version()
+    server = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
+    plugin = json.loads((ROOT / ".cursor-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    assert server["version"] == version
+    assert server["packages"][0]["version"] == version
+    assert plugin["version"] == version
+    if "dev" not in version:                      # a release has its changelog section
+        assert "## [%s]" % version in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+
 def test_wheel_ships_the_controller():
     text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert "fl_studio_mcp/_controller/device_FLStudioMCP.py" in text

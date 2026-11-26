@@ -1,7 +1,7 @@
 {
   "name": "flstudio-mcp",
   "displayName": "FL Studio MCP",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "FL Studio MCP server: control FL Studio from your AI assistant. Diagnose and fix a mix, set up plugin chains, route and color tracks, and write melodies, chords and drum patterns. Every change is reversible. Windows and macOS.",
   "author": {
     "name": "Rosa Synthesiz",
