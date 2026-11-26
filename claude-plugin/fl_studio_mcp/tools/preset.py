@@ -27,7 +27,9 @@ _NO_ROLLBACK = (
 
 
 def register(mcp: FastMCP) -> None:
-    _WR = {"readOnlyHint": False, "destructiveHint": False,
+    # Destructive: next/prev replace the plugin's current settings, which may
+    # hold unsaved tweaks, and FL cannot step back to them by index.
+    _WR = {"readOnlyHint": False, "destructiveHint": True,
            "idempotentHint": False, "openWorldHint": True}
 
     @mcp.tool(annotations={"title": "Plugin preset info / next / prev", **_WR})
