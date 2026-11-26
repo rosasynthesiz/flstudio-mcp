@@ -35,8 +35,12 @@ in `references/`.
 | Read a plugin's knobs | `fl_plugin_list`, `fl_plugin_get_params` (names + normalised 0..1 values) |
 | Change one knob | `fl_plugin_set_param` — answers `verified` / `attempts`; a `hint` means FL refused the value |
 | Change several knobs of one plugin | `fl_plugin_set_params` — one paced burst, ONE undo step; prefer it over repeating the single tool |
+| Read / step a plugin's presets | `fl_plugin_preset` — `info` is a read; `next`/`prev` have NO rollback (FL cannot set a preset) |
+| FL's own undo | `fl_undo` — one step outside the rollback layer; warn the user it can cancel a rollback |
+| What names does an FL module expose | `fl_api_probe` — read-only, names only, filterable |
 | List / pick / rename patterns | `fl_pattern_list` (paginated), `fl_pattern_select`, `fl_pattern_rename` — select/rename are one rollback step each |
 | How long is a pattern | `fl_pattern_get_length` — beats (FL's native unit) + derived bars/ticks via the project PPQ |
+| Read a track / channel color | `fl_get_track_color`, `fl_get_channel_color` — FL quantizes some set colors |
 | See FL on screen / debug visually | `fl_screenshot` — captures FL's window only; PNG path to Read back (see «Debugging with screenshots») |
 | Sections | `fl_arrange_add_marker`, `fl_arrangement_markers`, `fl_playlist_*` |
 

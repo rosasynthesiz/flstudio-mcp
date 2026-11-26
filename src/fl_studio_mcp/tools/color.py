@@ -94,6 +94,7 @@ def _before_int(before):
 def register(mcp: FastMCP) -> None:
     _WR = {"readOnlyHint": False, "destructiveHint": False,
            "idempotentHint": False, "openWorldHint": True}
+    _RO = {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True}
 
     @mcp.tool(annotations={"title": "Color mixer tracks", **_WR})
     def fl_set_track_color(
@@ -139,7 +140,9 @@ def register(mcp: FastMCP) -> None:
     ) -> dict:
         """Set the color of channel-rack channels (separate from mixer-track
         color). Target by index or name substring. ONE rollback unit --
-        fl_rollback_last_change reverts it."""
+        fl_rollback_last_change reverts it. Note: FL's RGBToColor quantizes
+        some colors (live: '#00FF00' reads back as '#14FF14') -- verify with
+        fl_get_channel_color."""
         rgb = parse_color(color)
         if rgb is None:
             return {"ok": False, "error": "unknown color %r" % color,
@@ -166,3 +169,20 @@ def register(mcp: FastMCP) -> None:
             return {"ok": False, "error": "%s: %s" % (type(e).__name__, e)}
         return {"ok": True, "color": color, "rgb": list(rgb), "channels": targets,
                 "result": res, "undo": "fl_rollback_last_change"}
+
+    @mcp.tool(annotations={"title": "Read channel color", **_RO})
+    def fl_get_channel_color(
+        channel: Annotated[int, Field(ge=0, description="Channel Rack index.")],
+    ) -> dict:
+        """Channel color: {channel, color:{int, hex, r, g, b}} -- read-only
+        counterpart of fl_set_channel_color."""
+        return get_bridge().call(protocol.CMD_CHANNEL_GET_COLOR,
+                                 {"channel": channel})
+
+    @mcp.tool(annotations={"title": "Read mixer track color", **_RO})
+    def fl_get_track_color(
+        track: Annotated[int, Field(ge=0, description="Mixer track index.")],
+    ) -> dict:
+        """Mixer track color: {track, color:{int, hex, r, g, b}} -- read-only
+        counterpart of fl_set_track_color."""
+        return get_bridge().call(protocol.CMD_MIXER_GET_COLOR, {"track": track})

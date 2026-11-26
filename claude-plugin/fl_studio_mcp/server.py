@@ -44,11 +44,14 @@ from .tools import phase1 as phase1_tools
 from .tools import pattern as pattern_tools
 from .tools import pianoroll as pianoroll_tools
 from .tools import plugin as plugin_tools
+from .tools import preset as preset_tools
 from .tools import presets as presets_tools
+from .tools import probe as probe_tools
 from .tools import resources as resource_defs
 from .tools import routing as routing_tools
 from .tools import steps as steps_tools
 from .tools import transport as transport_tools
+from .tools import undo as undo_tools
 from .tools import visual as visual_tools
 
 
@@ -108,6 +111,9 @@ def build_server() -> FastMCP:
     steps_tools.register(mcp)       # Step sequencer: read/write drum steps (safety layer)
     drums_tools.register(mcp)       # Drums to MIDI, optionally into the step sequencer
     pattern_tools.register(mcp)     # E-2: pattern list/select/rename/get_length
+    preset_tools.register(mcp)      # E-5: plugin preset info/next/prev
+    probe_tools.register(mcp)       # E-5: fl_api_probe (module name listing)
+    undo_tools.register(mcp)        # E-5: fl_undo (outside the safety layer)
     capabilities_tools.register(mcp)
     loader_tools.register(mcp)
     playlist_tools.register(mcp)
