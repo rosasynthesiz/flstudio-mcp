@@ -12,8 +12,59 @@ from typing import Annotated
 from fastmcp import FastMCP
 from pydantic import Field
 
-from .. import protocol, safety
-from ..connection import FLCommandFailed, FLNotRunning, FLTimeout, get_bridge
+from .. import __version__, protocol, safety
+from ..connection import (
+    FLBridgeError,
+    FLCommandFailed,
+    FLNotRunning,
+    FLPortMissing,
+    FLTimeout,
+    get_bridge,
+)
+
+_SETUP_DOCS = "https://github.com/rosasynthesiz/flstudio-mcp#setup"
+
+
+def _ping_without_setup() -> dict:
+    """fl_ping for installs that ship without the setup helper (the Claude plugin).
+
+    Same result shape as the full check, from the bridge alone: it cannot look at
+    FL's folders or compare controller versions, so setup steps point to the docs.
+    """
+    import time
+
+    def out(status: str, nxt: str, **extra) -> dict:
+        return {"alive": status == "READY", "status": status, "next": nxt,
+                "server_version": __version__, **extra}
+
+    try:
+        bridge = get_bridge()
+    except FLPortMissing:
+        return out("PORTS_MISSING", "Create the two MIDI ports and finish the one-time "
+                   "FL Studio setup: " + _SETUP_DOCS)
+    except Exception:  # FLBridgeError, rtmidi backend errors, sandboxed CoreMIDI
+        return out("MIDI_UNAVAILABLE", "MIDI is not available to this process. See " + _SETUP_DOCS)
+    deadline = time.monotonic() + 3.0
+    alive = bridge.is_alive()
+    while not alive and time.monotonic() < deadline:
+        time.sleep(0.25)
+        alive = bridge.is_alive()
+    if not alive:
+        return out("NO_HEARTBEAT", "Open FL Studio with a project loaded. If it is already "
+                   "open, finish the one-time controller setup: " + _SETUP_DOCS)
+    try:
+        pong = bridge.call(protocol.CMD_PING, timeout=3.0) or {}
+    except (FLTimeout, FLBridgeError):
+        return out("PING_TIMEOUT",
+                   "FL Studio is busy (a dialog may be open). Close it and try again.")
+    if pong.get("protocol_version") != protocol.PROTOCOL_VERSION:
+        return out("VERSION_MISMATCH", "Update the FL controller script (see " + _SETUP_DOCS
+                   + "), then restart FL Studio.", fl_version=pong.get("fl_version"))
+    age = bridge.heartbeat_age()
+    return out("READY", "Connected. Ask Claude to do something in FL Studio.",
+               fl_version=pong.get("fl_version"),
+               heartbeat_age_seconds=round(age, 2) if age is not None else None,
+               protocol_version=protocol.PROTOCOL_VERSION)
 
 
 def register(mcp: FastMCP) -> None:
@@ -34,7 +85,10 @@ def register(mcp: FastMCP) -> None:
         VERSION_MISMATCH, ...) and `next`: the one step that fixes it. Call
         this first, and again whenever another tool fails.
         """
-        from .. import setup_cli
+        try:
+            from .. import setup_cli
+        except ImportError:  # trimmed install without the setup helper
+            return _ping_without_setup()
 
         report = setup_cli.diagnose(wait=3.0)
         out = {

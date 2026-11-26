@@ -1,0 +1,39 @@
+{
+  "name": "rosa-fl-studio",
+  "displayName": "FL Studio MCP by Rosa Synthesiz",
+  "version": "2.0.0",
+  "description": "Control FL Studio from Claude: diagnose a mix, adjust plugin parameters, write piano roll notes, drum patterns and arrangements, with every change logged and reversible. Runs locally and talks to FL Studio over virtual MIDI.",
+  "author": {
+    "name": "Rosa Synthesiz",
+    "url": "https://rosasynthesiz.com"
+  },
+  "homepage": "https://rosasynthesiz.com/products/fl-studio-mcp",
+  "repository": "https://github.com/rosasynthesiz/flstudio-mcp",
+  "license": "MIT",
+  "keywords": [
+    "fl-studio",
+    "daw",
+    "music-production",
+    "mixing",
+    "midi",
+    "mcp"
+  ],
+  "mcpServers": {
+    "flstudio": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "--frozen",
+        "--isolated",
+        "--no-dev",
+        "--no-build",
+        "--no-config",
+        "--no-python-downloads",
+        "${CLAUDE_PLUGIN_ROOT}/server.py"
+      ]
+    }
+  },
+  "icon": ".claude-plugin/icon.png"
+}

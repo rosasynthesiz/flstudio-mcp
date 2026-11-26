@@ -76,17 +76,17 @@ def drum_notes(path, bpm, quantize=1 / 16.0, align=True):
     pad = int(0.05 * sr)                       # lets a hit at 0.0 s be detected
     y = np.concatenate([np.zeros(pad), y])
     y_high = sosfilt(butter(4, 5000, "highpass", fs=sr, output="sos"), y)
-    env = librosa.onset.onset_strength(y=y, sr=sr)
+    onset_env = librosa.onset.onset_strength(y=y, sr=sr)
     # Detected onsets lag the attack a little; refine each one ourselves.
     # (librosa's backtracking moves a hit to the quietest point before it,
     # which can lie in the previous hit's tail: a clap after an open hat.)
-    detected = librosa.onset.onset_detect(onset_envelope=env, sr=sr, units="samples")
+    detected = librosa.onset.onset_detect(onset_envelope=onset_env, sr=sr, units="samples")
     onsets, floor = [], 0
     for d in detected:
         a = _attack(y, int(d), floor, sr)
         onsets.append(a)
         floor = int(d)
-    peak = float(env.max()) or 1.0
+    peak = float(onset_env.max()) or 1.0
     barlen = 4.0 * 60.0 / bpm
     win = int(0.06 * sr)
     freqs = np.fft.rfftfreq(win, 1.0 / sr)
@@ -121,7 +121,7 @@ def drum_notes(path, bpm, quantize=1 / 16.0, align=True):
         t = max(0.0, t / barlen)
         if quantize:
             t = round(round(t / quantize) * quantize, 6)
-        strength = float(env[min(frame, len(env) - 1)]) / peak
+        strength = float(onset_env[min(frame, len(onset_env) - 1)]) / peak
         notes.append({"pitch": pitch, "kind": NAMES[pitch], "time_bars": t,
                       "length_bars": quantize or 0.0625,
                       "velocity": round(min(1.0, 0.3 + 0.7 * strength), 3)})
