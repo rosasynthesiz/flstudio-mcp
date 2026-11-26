@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One version for server and controller, checked on connect.
 - FastMCP capped below 5; `pyautogui` no longer installed on macOS (the note-bridge key goes through System Events).
 - The macOS installer uses a private `.venv` and no longer touches the system Python.
+- Installs on Intel Macs again: `cryptography` is held below 49 there, the last line with an Intel-Mac wheel.
 - `mcp.json` no longer forces the daemon transport, and an old `FLSTUDIO_MCP_TRANSPORT=tcp` setting now works without a daemon.
 
 **Upgrading from 1.x:** run `fl-studio-mcp setup` again and restart FL Studio. Existing `FLStudioMCP RX` / `FLStudioMCP TX` ports and MIDI Settings keep working.

@@ -38,6 +38,10 @@ dependencies = [
     # System Events (osascript), so no GUI-automation package is installed there.
     "pyautogui>=0.9.54; sys_platform == 'win32'",
     "pygetwindow>=0.0.9; sys_platform == 'win32'",  # Windows focus helper
+    # Transitive (fastmcp -> joserfc). cryptography 49+ ships no macOS Intel
+    # wheel, so a fresh install there would try a Rust build and fail; 48.x
+    # ships universal2 wheels. Same pin as claude-plugin/pyproject.toml.
+    "cryptography>=45.0.1,<49; sys_platform == 'darwin' and platform_machine == 'x86_64'",
 ]
 
 [project.optional-dependencies]
