@@ -2,7 +2,7 @@
 
 **The MCP server for FL Studio (Fruity Loops): AI mixing, mix diagnosis, plugin control, piano roll and drum patterns, in plain language.**
 
-**Website:** [rosasynthesiz.com/products/fl-studio-mcp](https://rosasynthesiz.com/products/fl-studio-mcp): what it does, all 91 tools and setup.
+**Website:** [rosasynthesiz.com/products/fl-studio-mcp](https://rosasynthesiz.com/products/fl-studio-mcp): what it does, all 96 tools and setup.
 
 [![PyPI](https://img.shields.io/pypi/v/fl-studio-mcp)](https://pypi.org/project/fl-studio-mcp/)
 ![status](https://img.shields.io/badge/status-beta-yellow)
@@ -19,7 +19,7 @@
 
 `flstudio-mcp` is a Model Context Protocol (MCP) server that connects FL Studio to AI assistants: Claude Code, Claude Desktop, Cursor, Codex, or any other MCP client. Ask for a mix diagnosis, a vocal chain, a chord progression in a particular scale, or a full arrangement, and the assistant carries it out inside your open FL Studio project through FL's scripting API and a set of calibrated, safety-checked tools.
 
-- **91 tools** for the mixer, plugins, piano roll, step sequencer, patterns, playlist, routing and transport
+- **96 tools** for the mixer, plugins, piano roll, step sequencer, patterns, playlist, routing and transport
 - **One-command setup on macOS**, with no MIDI configuration
 - **Every change can be undone**, and an undo never touches a different project
 - **Windows and macOS**, FL Studio 2025 and 2026
@@ -96,7 +96,7 @@ these commands yet; use the commands above until 2.0.0 is released.
 - **Chords-to-MIDI** transcription of polyphonic audio (keys, piano, guitar) with Spotify's Basic Pitch, as notes for the piano roll or a `.mid` file.
 - **Drums to MIDI**: a drum loop or stem to kick, snare, clap, closed and open hi-hat, aligned to the beat, as a `.mid` or straight into the step sequencer of the channels you choose (one undo step).
 
-The server exposes 91 tools, plus 6 live resources (project, mixer, transport, channels, patterns, status) that Claude can read directly.
+The server exposes 96 tools, plus 6 live resources (project, mixer, transport, channels, patterns, status) that Claude can read directly.
 
 ## What sets it apart
 
@@ -232,7 +232,7 @@ Or in one line from your terminal:
 claude plugin install rosa-fl-studio --marketplace rosasynthesiz/flstudio-mcp
 ```
 
-The plugin lives in the `claude-plugin/` folder. It adds the `flstudio` MCP server with all 91 tools and a skill that teaches Claude how to use them.
+The plugin lives in the `claude-plugin/` folder. It adds the `flstudio` MCP server with all 96 tools and a skill that teaches Claude how to use them.
 
 - **What runs:** Claude Code starts `uv run` on `claude-plugin/server.py`, a bundled copy of this server, with the dependency versions pinned in `claude-plugin/uv.lock`. `uv` downloads those pinned packages from PyPI the first time it runs, as prebuilt wheels only.
 - **What it needs:** [uv](https://docs.astral.sh/uv/) installed, Python 3.11 or 3.12 already installed (the plugin does not download Python), and FL Studio 2025 or newer. Do the one-time setup described in [Setup](#setup) first (macOS: `fl-studio-mcp setup`; Windows: loopMIDI ports and the MIDI Settings step). Without it, `fl_ping` tells Claude which step is missing.
@@ -270,7 +270,7 @@ Plain-language prompts:
 
 ## Tools
 
-91 tools, grouped by area.
+96 tools, grouped by area.
 
 ### Transport
 
@@ -343,6 +343,7 @@ All plugin tools also reach channel-rack instruments: pass `slot=-1` and the cha
 - `fl_list_chains` — List the built-in processing-chain recipes (vocal, drum bus, bass, master).
 - `fl_list_installed_plugins` — List the plugins installed in FL Studio, de-duplicated and categorized.
 - `fl_setup_chain` — Plan a processing chain over a track's existing plugins.
+- `fl_plugin_preset` — Read a plugin's preset (info) or step to the next/previous one; navigation has no rollback.
 
 ### Routing
 
@@ -360,6 +361,8 @@ All plugin tools also reach channel-rack instruments: pass `slot=-1` and the cha
 - `fl_clear_mute_solo` — Unmute and unsolo every mixer track.
 - `fl_set_track_color` — Color mixer tracks by name, group, color name or hex.
 - `fl_set_channel_color` — Color channel-rack channels.
+- `fl_get_track_color` — Read a mixer track's color (int, hex and RGB).
+- `fl_get_channel_color` — Read a channel-rack channel's color (int, hex and RGB).
 
 ### Composition & arrangement
 
@@ -395,6 +398,11 @@ All plugin tools also reach channel-rack instruments: pass `slot=-1` and the cha
 - `fl_pattern_select` — Switch the working pattern; one undo step.
 - `fl_pattern_rename` — Rename a pattern; one undo step.
 - `fl_pattern_get_length` — Read a pattern's length in beats, bars and ticks.
+
+### Undo & introspection
+
+- `fl_undo` — One FL undo step; outside the rollback layer, with a warning about what it can and cannot undo.
+- `fl_api_probe` — List the names one FL scripting module exposes, optionally filtered; read-only.
 
 ### Debugging
 

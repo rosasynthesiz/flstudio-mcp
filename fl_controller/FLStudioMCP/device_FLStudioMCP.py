@@ -342,6 +342,17 @@ def _dispatch(command, params):
 
 # -- transport handlers ------------------------------------------------------
 
+def _h_undo(p):
+    """general.undoUp() -- one FL undo step. No snapshot is possible (nothing
+    readable describes what the jump will undo), so the MCP tool sits OUTSIDE
+    the safety layer, like fl_play/fl_stop."""
+    try:
+        general.undoUp()
+        return {"ok": True, "undid": True}
+    except Exception as e:
+        return {"ok": False, "error": "undoUp: " + str(e)}
+
+
 def _h_ping(params):
     return {
         "fl_version": _fl_version,
@@ -979,7 +990,10 @@ def _h_plugin_preset(p):
     """Navigate/read a plugin's presets. For a channel generator pass slot=-1.
     op 'next'/'prev' step the preset first, then everything reports the CURRENT
     state: preset_count + candidate current-preset names (getName flags 3/6 +
-    getPluginName). Wrapped defensively -- a walled-off plugin just yields
+    getPluginName). Per the official docs, flag 6 (FPN_Preset) needs
+    paramIndex=midi.GPN_GetCurrentPreset for the CURRENT preset name --
+    paramIndex 0 only reads preset #0 (falls back to 0 if the constant is
+    missing). Wrapped defensively -- a walled-off plugin just yields
     count 0/1 and unchanging names."""
     track = int(p["track"])
     slot = int(p.get("slot", -1))
@@ -1004,9 +1018,11 @@ def _h_plugin_preset(p):
         out["plugin_name"] = plugins.getPluginName(track, slot)
     except Exception:
         out["plugin_name"] = None
-    for flag, key in ((3, "name_f3"), (6, "name_f6")):
+    cur_preset = getattr(midi, "GPN_GetCurrentPreset", 0)
+    for flag, key, pidx in ((3, "name_f3", 0),
+                            (6, "name_f6", cur_preset)):
         try:
-            out[key] = plugins.getName(track, slot, flag, 0)
+            out[key] = plugins.getName(track, slot, flag, pidx)
         except Exception:
             out[key] = None
     return out
@@ -1046,7 +1062,7 @@ def _h_api_probe(p):
     if op == "dir":
         mods = {"playlist": playlist, "arrangement": arrangement, "patterns": patterns,
                 "general": general, "transport": transport, "ui": ui, "midi": midi,
-                "mixer": mixer, "channels": channels}
+                "mixer": mixer, "channels": channels, "plugins": plugins}
         mod = mods.get(p.get("module", "playlist"))
         if mod is None:
             return {"module": p.get("module"), "error": "module not available"}
@@ -1240,7 +1256,7 @@ def _h_api_probe(p):
             general.undoUp()
             return {"ok": True, "undid": True}
         except Exception as e:
-            return {"ok": False, "error": "undoUp: %s" % e}
+            return {"ok": False, "error": "undoUp: " + str(e)}
     return {"error": "unknown op: %s" % op}
 
 
@@ -1620,6 +1636,7 @@ _HANDLERS = {
     "channel_get_color": _h_channel_get_color,
     "plugin_preset": _h_plugin_preset,
     "api_probe": _h_api_probe,
+    "undo": _h_undo,
     "arrange_new_pattern": _h_arrange_new_pattern,
     "arrange_clone_pattern": _h_arrange_clone_pattern,
     "arrange_add_marker": _h_arrange_add_marker,

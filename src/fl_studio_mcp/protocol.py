@@ -163,8 +163,15 @@ CMD_PLUGIN_PRESET = "plugin_preset"                    # getPresetCount/next/pre
 
 # API introspection / arrangement probe -- op: dir | ppq | step | pat | jump | marker_add | undo
 # (op "step", "pat" and "jump" are READ-ONLY probes: step-grid/focus,
-#  pattern metadata, and jumpToPattern bounds; none of them mutate the project)
+#  pattern metadata, and jumpToPattern bounds; none of them mutate the project.
+#  op "undo" predates CMD_UNDO and stays for back-compat; fl_undo uses the
+#  honest command below)
 CMD_API_PROBE = "api_probe"
+
+# FL undo -- general.undoUp(); no snapshot is possible (nothing readable
+# describes the jump before it happens), so fl_undo lives OUTSIDE the safety
+# layer, like fl_play/fl_stop.
+CMD_UNDO = "undo"
 
 # Arrangement primitives (Slice 1) -- pattern create/clone + section markers
 CMD_ARRANGE_NEW_PATTERN = "arrange_new_pattern"        # find empty + jumpTo + name
