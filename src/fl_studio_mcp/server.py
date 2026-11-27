@@ -34,6 +34,7 @@ from .tools import arrange as arrange_tools
 from .tools import audio as audio_tools
 from .tools import bulk as bulk_tools
 from .tools import chains as chains_tools
+from .tools import changes as changes_tools
 from .tools import color as color_tools
 from .tools import compose as compose_tools
 from .tools import drums as drums_tools
@@ -114,6 +115,7 @@ def build_server() -> FastMCP:
     preset_tools.register(mcp)      # E-5: plugin preset info/next/prev
     probe_tools.register(mcp)       # E-5: fl_api_probe (module name listing)
     undo_tools.register(mcp)        # E-5: fl_undo (outside the safety layer)
+    changes_tools.register(mcp)     # session history: list + bulk rollback
     capabilities_tools.register(mcp)
     loader_tools.register(mcp)
     playlist_tools.register(mcp)

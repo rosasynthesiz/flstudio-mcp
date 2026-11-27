@@ -1,6 +1,6 @@
 # FL Studio MCP (Claude plugin)
 
-Control FL Studio from Claude. The plugin starts a local MCP server with 96 tools: diagnose a mix, adjust mixer levels and plugin parameters, write drum patterns and piano roll notes, set tempo and arrange patterns. Every change is logged and can be rolled back. It runs on your own computer and talks to FL Studio over virtual MIDI; it makes no calls to the internet.
+Control FL Studio from Claude. The plugin starts a local MCP server with 98 tools: diagnose a mix, adjust mixer levels and plugin parameters, write drum patterns and piano roll notes, set tempo and arrange patterns. Every change is logged and can be rolled back. It runs on your own computer and talks to FL Studio over virtual MIDI; it makes no calls to the internet.
 
 ## Requirements
 
