@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Session history:** `fl_list_changes` lists what this session changed, newest first (tool, scope, age, fields that changed, whether it can be undone here), and `fl_rollback_changes` undoes the newest N changes of the open project in one call, newest first, stopping and reporting a partial result if a restore fails. 98 tools.
+
 ## [2.0.0] - 2026-11-27
 
 - **One-command setup:** `fl-studio-mcp setup` installs the controller script (now shipped inside the package), waits for FL Studio and reports READY only after a real ping. `fl-studio-mcp doctor` prints one status code and the next step; `fl-studio-mcp connect` prints the client entry.

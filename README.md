@@ -2,7 +2,7 @@
 
 **The MCP server for FL Studio (Fruity Loops): AI mixing, mix diagnosis, plugin control, piano roll and drum patterns, in plain language.**
 
-**Website:** [rosasynthesiz.com/products/fl-studio-mcp](https://rosasynthesiz.com/products/fl-studio-mcp): what it does, all 96 tools and setup.
+**Website:** [rosasynthesiz.com/products/fl-studio-mcp](https://rosasynthesiz.com/products/fl-studio-mcp): what it does, all 98 tools and setup.
 
 [![PyPI](https://img.shields.io/pypi/v/fl-studio-mcp)](https://pypi.org/project/fl-studio-mcp/)
 ![status](https://img.shields.io/badge/status-beta-yellow)
@@ -19,7 +19,7 @@
 
 `flstudio-mcp` is a Model Context Protocol (MCP) server that connects FL Studio to AI assistants: Claude Code, Claude Desktop, Cursor, Codex, or any other MCP client. Ask for a mix diagnosis, a vocal chain, a chord progression in a particular scale, or a full arrangement, and the assistant carries it out inside your open FL Studio project through FL's scripting API and a set of calibrated, safety-checked tools.
 
-- **96 tools** for the mixer, plugins, piano roll, step sequencer, patterns, playlist, routing and transport
+- **98 tools** for the mixer, plugins, piano roll, step sequencer, patterns, playlist, routing and transport
 - **One-command setup on macOS**, with no MIDI configuration
 - **Every change can be undone**, and an undo never touches a different project
 - **Windows and macOS**, FL Studio 2025 and 2026
@@ -97,7 +97,7 @@ release: `uvx --from git+https://github.com/rosasynthesiz/flstudio-mcp fl-studio
 - **Chords-to-MIDI** transcription of polyphonic audio (keys, piano, guitar) with Spotify's Basic Pitch, as notes for the piano roll or a `.mid` file.
 - **Drums to MIDI**: a drum loop or stem to kick, snare, clap, closed and open hi-hat, aligned to the beat, as a `.mid` or straight into the step sequencer of the channels you choose (one undo step).
 
-The server exposes 96 tools, plus 6 live resources (project, mixer, transport, channels, patterns, status) that Claude can read directly.
+The server exposes 98 tools, plus 6 live resources (project, mixer, transport, channels, patterns, status) that Claude can read directly.
 
 ## What sets it apart
 
@@ -212,6 +212,9 @@ the Windows installer also asks.
 **Undo is tied to the project.** Every change Claude makes can be rolled back
 with `fl_rollback_last_change`, but only inside the project and FL session it
 was made in. An entry from another project is refused, never applied.
+`fl_list_changes` shows this session's changes in plain language (tool, scope,
+fields that changed, age) and `fl_rollback_changes` undoes several of them in
+one call, newest first, stopping honestly if one restore fails.
 
 After updating, run `setup` again and restart FL Studio so the controller and
 the server are the same version (`doctor` reports a mismatch). See
@@ -233,7 +236,7 @@ Or in one line from your terminal:
 claude plugin install rosa-fl-studio --marketplace rosasynthesiz/flstudio-mcp
 ```
 
-The plugin lives in the `claude-plugin/` folder. It adds the `flstudio` MCP server with all 96 tools and a skill that teaches Claude how to use them.
+The plugin lives in the `claude-plugin/` folder. It adds the `flstudio` MCP server with all 98 tools and a skill that teaches Claude how to use them.
 
 - **What runs:** Claude Code starts `uv run` on `claude-plugin/server.py`, a bundled copy of this server, with the dependency versions pinned in `claude-plugin/uv.lock`. `uv` downloads those pinned packages from PyPI the first time it runs, as prebuilt wheels only.
 - **What it needs:** [uv](https://docs.astral.sh/uv/) installed, Python 3.11 or 3.12 already installed (the plugin does not download Python), and FL Studio 2025 or newer. Do the one-time setup described in [Setup](#setup) first (macOS: `fl-studio-mcp setup`; Windows: loopMIDI ports and the MIDI Settings step). Without it, `fl_ping` tells Claude which step is missing.
@@ -271,7 +274,7 @@ Plain-language prompts:
 
 ## Tools
 
-96 tools, grouped by area.
+98 tools, grouped by area.
 
 ### Transport
 
@@ -302,6 +305,8 @@ Plain-language prompts:
 - `fl_set_channel_solo` — Solo or unsolo a channel.
 - `fl_take_snapshot` — Read the current state of a scope for before/after comparison.
 - `fl_rollback_last_change` — Undo the most recent write from its saved snapshot.
+- `fl_list_changes` — What this session changed, newest first, with what can be undone here (read-only).
+- `fl_rollback_changes` — Undo the newest N changes of the open project, one by one; stops and reports a partial result.
 - `fl_set_dry_run` — Preview writes without changing the project.
 
 ### Mix Doctor & gain staging

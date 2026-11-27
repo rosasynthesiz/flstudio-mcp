@@ -16,7 +16,7 @@ import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_TOOLS = 96
+EXPECTED_TOOLS = 98
 
 _P = _F = 0
 
